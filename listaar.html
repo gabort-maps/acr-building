@@ -1,0 +1,582 @@
+<!doctype html><html lang="hu"><head><!-- ACR listaár v1 --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<script>// Ugyanaz a belépés és adatbázis (Supabase, public.docs), mint az acr-admin.html-ben.
+// ?helyi=1 : helyi próbamód, az adat csak ebben a böngészőben (localStorage) van.
+(function () {
+  const CFG = { url: 'https://vsortedjvgtzjrlaqjiq.supabase.co', key: 'sb_publishable_SaEk0Mx9x5rXKy-fgm9u_Q_nC7lK5cM' };
+  const TAG = 'w' + Math.random().toString(36).slice(2, 8);
+  const LOCAL = /[?&]helyi=1/.test(location.search);
+  const mk = (h) => { const d = document.createElement('div'); d.innerHTML = h; return d.firstElementChild; };
+  let sbP = null, email = '';
+  const loadScript = (src) => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('nem tölt be: ' + src)); document.head.appendChild(s); });
+  async function ensureLib() {
+    if (window.supabase) return;
+    for (const u of ['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js', 'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js']) { try { await loadScript(u); if (window.supabase) return; } catch (e) { } }
+    throw new Error('A belépési modul nem tölthető be (a hálózat tiltja a CDN-t?).');
+  }
+  function fail(e) {
+    document.body.appendChild(mk(`<div style="position:fixed;inset:0;z-index:9999;background:#f3f4f2;display:flex;align-items:center;justify-content:center;font:15px system-ui;padding:20px"><div style="background:#fff;border:1px solid #d3d9dc;border-radius:10px;padding:24px;max-width:460px"><b>A listaár oldal nem tud csatlakozni.</b><p>${String(e && e.message || e).replace(/</g, '&lt;')}</p></div></div>`));
+  }
+  const css = `<style>#sbov{position:fixed;inset:0;background:#f3f4f2;z-index:9999;display:flex;align-items:center;justify-content:center;font:15px 'IBM Plex Sans',system-ui,sans-serif;color:#1b2125}
+#sbov form{background:#fff;border:1px solid #d3d9dc;border-radius:10px;padding:24px;width:min(360px,92vw);display:grid;gap:12px}
+#sbov h1{font-size:18px;margin:0 0 4px}#sbov input{padding:9px;border:1px solid #b6bfc4;border-radius:6px;background:#fffcec;font:inherit}
+#sbov button{padding:10px;border:0;border-radius:6px;background:#1d5d8a;color:#fff;font:inherit;cursor:pointer}#sbov .err{color:#b91c1c;min-height:1.2em;font-size:13px}</style>`;
+  function login(sb) {
+    return new Promise(async (res) => {
+      const s = await sb.auth.getSession();
+      if (s && s.data && s.data.session) { email = s.data.session.user.email || ''; return res(); }
+      document.head.insertAdjacentHTML('beforeend', css);
+      const ov = mk(`<div id="sbov"><form><h1>ACR listaár – belépés</h1><input type="email" id="sbe" placeholder="e-mail" autocomplete="username" required><input type="password" id="sbp" placeholder="jelszó" autocomplete="current-password" required><div class="err" id="sberr"></div><button type="submit">Belépés</button></form></div>`);
+      document.body.appendChild(ov);
+      ov.querySelector('form').addEventListener('submit', async (ev) => {
+        ev.preventDefault(); const e = ov.querySelector('#sbe').value.trim(), p = ov.querySelector('#sbp').value;
+        ov.querySelector('#sberr').textContent = 'Belépés…';
+        const r = await sb.auth.signInWithPassword({ email: e, password: p });
+        if (r.error) { ov.querySelector('#sberr').textContent = 'Hibás e-mail cím vagy jelszó.'; return; }
+        email = e; ov.remove(); res();
+      });
+    });
+  }
+  const clean = (d) => JSON.parse(JSON.stringify(d));
+  function makeDb(sb) {
+    return {
+      collection: (c) => ({
+        onSnapshot: (cb, errcb) => {
+          const m = new Map(), snap = () => ({ docs: [...m].map(([id, d]) => ({ id, data: () => d })) });
+          (async () => {
+            for (let from = 0; ; from += 1000) {
+              const r = await sb.from('docs').select('id,data').eq('collection', c).range(from, from + 999);
+              if (r.error) { if (errcb) errcb(r.error); return; }
+              r.data.forEach((x) => m.set(x.id, x.data)); if (r.data.length < 1000) break;
+            }
+            cb(snap());
+            sb.channel('lp-' + c).on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, (p) => {
+              if (p.eventType === 'DELETE') { if (p.old && p.old.collection === c && m.delete(p.old.id)) cb(snap()); return; }
+              if (!p.new || p.new.collection !== c || p.new.updated_by === TAG) return;
+              m.set(p.new.id, p.new.data); cb(snap());
+            }).subscribe();
+          })();
+        },
+      }),
+      doc: (path) => {
+        const i = path.indexOf('/'), c = path.slice(0, i), id = path.slice(i + 1);
+        return {
+          set: async (d) => { const r = await sb.from('docs').upsert({ collection: c, id, data: clean(d), updated_by: TAG, updated_at: new Date().toISOString() }); if (r.error) throw r.error; },
+          delete: async () => { const r = await sb.from('docs').delete().eq('collection', c).eq('id', id); if (r.error) throw r.error; },
+        };
+      },
+      signOut: async () => { await sb.auth.signOut(); location.reload(); },
+    };
+  }
+  function localDb() {
+    const K = 'acrListaar.helyi', load = () => { try { return JSON.parse(localStorage.getItem(K) || '{}'); } catch (e) { return {}; } };
+    const subs = {}, fire = (c) => { const all = load()[c] || {}; (subs[c] || []).forEach((cb) => cb({ docs: Object.entries(all).map(([id, d]) => ({ id, data: () => d })) })); };
+    const save = (f) => { const all = load(); f(all); try { localStorage.setItem(K, JSON.stringify(all)); } catch (e) { } };
+    return {
+      collection: (c) => ({ onSnapshot: (cb) => { (subs[c] = subs[c] || []).push(cb); setTimeout(() => fire(c), 0); } }),
+      doc: (path) => { const i = path.indexOf('/'), c = path.slice(0, i), id = path.slice(i + 1); return {
+        set: async (d) => { save((a) => { (a[c] = a[c] || {})[id] = clean(d); }); fire(c); },
+        delete: async () => { save((a) => { if (a[c]) delete a[c][id]; }); fire(c); } }; },
+      signOut: null,
+    };
+  }
+  window.LPDB = {
+    local: LOCAL,
+    email: () => (LOCAL ? 'helyi próba' : email),
+    open: () => { if (!sbP) sbP = LOCAL ? Promise.resolve(localDb()) : (async () => { await ensureLib(); const sb = window.supabase.createClient(CFG.url, CFG.key); await login(sb); return makeDb(sb); })(); sbP.catch(fail); return sbP; },
+  };
+})();
+</script>
+<title>ACR listaár</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:#f3f4f2; --panel:#ffffff; --fg:#1b2125; --mute:#5b666c; --line:#d3d9dc; --soft:#e9edef; --acc:#1d5d8a; --accfg:#ffffff;
+  --warn:#b45309; --warnbg:#fef3c7; --ok:#15803d; --okbg:#e3f4e8; --inbg:#fffcec; --inbd:#b6bfc4; --head:#e3e9ed; --badbg:#fde8e8; --badfg:#b91c1c; --spec:#f3e8ff; --specfg:#6b21a8;
+  --sans:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#14181b; --panel:#1c2226; --fg:#e4e7e8; --mute:#9aa5ab; --line:#333d43; --soft:#262e33; --acc:#7db4e0; --accfg:#0d1316;
+  --warn:#fbbf24; --warnbg:#3a2e0c; --ok:#4ade80; --okbg:#173022; --inbg:#2a3035; --inbd:#55626a; --head:#273036; --badbg:#4a1f1f; --badfg:#fca5a5; --spec:#2e2140; --specfg:#d8b4fe; color-scheme:dark } }
+:root[data-theme="dark"] {
+  --bg:#14181b; --panel:#1c2226; --fg:#e4e7e8; --mute:#9aa5ab; --line:#333d43; --soft:#262e33; --acc:#7db4e0; --accfg:#0d1316;
+  --warn:#fbbf24; --warnbg:#3a2e0c; --ok:#4ade80; --okbg:#173022; --inbg:#2a3035; --inbd:#55626a; --head:#273036; --badbg:#4a1f1f; --badfg:#fca5a5; --spec:#2e2140; --specfg:#d8b4fe; color-scheme:dark }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--sans); font-size:14px; line-height:1.4; padding:12px 16px 32px; }
+#app { max-width:1500px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
+#app > *, section > * { min-width:0; }
+.bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
+.bar h1 { font-size:18px; font-weight:600; margin:0; margin-right:auto; }
+.tabs { display:flex; gap:4px; flex-wrap:wrap; }
+.tabs button { border:1px solid var(--line); background:var(--panel); color:var(--fg); padding:7px 14px; border-radius:6px; cursor:pointer; font:inherit; }
+.tabs button.on { background:var(--acc); color:var(--accfg); border-color:var(--acc); }
+.who { font-size:12px; color:var(--mute); display:flex; flex-wrap:wrap; gap:10px; align-items:center; min-width:0; }
+#who { overflow-wrap:anywhere; }
+.who button { border:0; background:none; color:var(--acc); cursor:pointer; text-decoration:underline; font:inherit; padding:0; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }
+.card h2 { font-size:15px; margin:0 0 10px; font-weight:600; }
+.filters { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:end; }
+label.f { display:grid; gap:3px; font-size:12px; color:var(--mute); }
+select, input[type=text], textarea { font:inherit; color:var(--fg); background:var(--inbg); border:1px solid var(--inbd); border-radius:6px; padding:6px 8px; }
+select { background:var(--panel); }
+input[type=text].num { width:92px; text-align:right; font-family:var(--mono); }
+input[readonly], select:disabled, textarea[readonly] { background:var(--soft); color:var(--mute); }
+textarea { width:100%; min-height:54px; resize:vertical; }
+.btn { border:1px solid var(--line); background:var(--panel); color:var(--fg); padding:6px 12px; border-radius:6px; cursor:pointer; font:inherit; }
+.btn.pri { background:var(--acc); color:var(--accfg); border-color:var(--acc); }
+.btn.dan { color:var(--badfg); }
+.btn:disabled { opacity:.5; cursor:default; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px 14px; }
+.hint { font-size:12px; color:var(--mute); }
+.inh { font-size:11px; color:var(--mute); font-family:var(--mono); }
+.note { background:var(--warnbg); color:var(--fg); border-radius:6px; padding:10px 12px; font-size:13px; }
+.note b { color:var(--warn); }
+.ok { color:var(--ok); } .bad { color:var(--badfg); }
+.tw { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-size:13px; }
+th, td { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+th { background:var(--head); font-weight:600; font-size:12px; position:sticky; top:0; }
+td.n, th.n { text-align:right; font-family:var(--mono); white-space:nowrap; }
+tr.tot td { font-weight:600; background:var(--soft); }
+tr.spec td { background:var(--spec); }
+.tag { display:inline-block; font-size:11px; border-radius:10px; padding:1px 8px; background:var(--soft); color:var(--mute); white-space:nowrap; }
+.tag.spec { background:var(--spec); color:var(--specfg); font-weight:600; }
+.tag.av { background:var(--okbg); color:var(--ok); }
+.tag.re { background:var(--head); color:var(--fg); }
+.dim { color:var(--mute); }
+tr.ed td { background:var(--soft); }
+.calc td, .calc th { white-space:nowrap; }
+.calc td.lab { white-space:normal; min-width:240px; }
+.calc input[type=text], .calc select { width:100%; min-width:110px; }
+.calc tr.sec td { background:var(--head); font-weight:600; font-size:12px; }
+.calc td.res { font-family:var(--mono); text-align:right; }
+.calc td.best { color:var(--ok); font-weight:600; }
+#toast { position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:var(--fg); color:var(--bg); padding:8px 14px; border-radius:6px; opacity:0; transition:opacity .2s; pointer-events:none; font-size:13px; }
+#toast.on { opacity:1; }
+.printonly { display:none; }
+@media (max-width:700px) { input[type=text].num { width:78px; } .calc td.lab { min-width:160px; } }
+@media print {
+  body { background:#fff; color:#000; padding:0; font-size:11px; }
+  .noprint, .tabs, .who, .filters, #gen, .btn, #toast { display:none !important; }
+  .printonly { display:block; }
+  .card { border:0; padding:0; }
+  th { position:static; background:#eee; }
+  tr.spec td { background:#f3e8ff; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="bar">
+    <h1>ACR listaár <span class="dim" style="font-weight:400;font-size:13px">Horizont Park, Daróczi út 1–3</span></h1>
+    <div class="tabs noprint" role="tablist">
+      <button data-tab="list" class="on">Listaár</button><button data-tab="calc">Ajánlatkalkulátor</button><button data-tab="set">Beállítások</button>
+    </div>
+    <div class="who noprint"><span id="who">csatlakozás…</span><button id="out" hidden>Kilépés</button></div>
+  </div>
+  <div id="ro" class="note noprint" hidden></div>
+
+  <!-- LISTAÁR -->
+  <section id="t-list">
+    <div class="card filters noprint">
+      <label class="f">Épület<select id="fB"></select></label>
+      <label class="f">Szint<select id="fK"></select></label>
+      <label class="f">Szárny<select id="fW"></select></label>
+      <label class="f">Mutatott helyiségek<select id="fS"><option value="ker">Bérelhető (közös és gépészet nélkül)</option><option value="av">Csak kiadható</option><option value="all">Minden helyiség</option></select></label>
+      <label class="f">Havi összeg ennél a futamidőnél<select id="fT"><option value="r1">1 év</option><option value="r2">2 év</option><option value="r3">3 év</option><option value="r4" selected>3+ év</option></select></label>
+      <label class="f">Kijelzés pénzneme<select id="fC"><option value="">ahogy beállították</option><option>EUR</option><option>HUF</option></select></label>
+      <span style="margin-left:auto;display:flex;gap:8px"><button class="btn" id="csv">CSV letöltés</button><button class="btn" id="prn">Nyomtatás / PDF</button></span>
+    </div>
+    <div class="printonly"><h2 id="pTitle"></h2><p id="pMeta" class="hint"></p></div>
+    <div class="card" id="gen"></div>
+    <div class="card"><div class="tw" id="tbl"></div></div>
+    <div class="note" id="asis"></div>
+  </section>
+
+  <!-- KALKULÁTOR -->
+  <section id="t-calc" hidden>
+    <div class="card noprint">
+      <h2>Ajánlatkalkulátor: nettó effektív bérleti díj, 3 változat</h2>
+      <p class="hint" style="margin:0 0 10px">Az A, B, C oszlop forgatókönyv ugyanarra a bérleményre, nem három külön ajánlat. A számítás az ACR_ajanlat_kalkulator_v4.xlsx képleteit követi. A bevitt értékek csak ebben a böngészőben maradnak meg.</p>
+      <div class="filters">
+        <label class="f">Egység betöltése a listaárból<select id="cU" style="min-width:280px"></select></label>
+        <label class="f">Melyik változatba<select id="cV"><option value="all">mind a háromba</option><option value="0">A</option><option value="1">B</option><option value="2">C</option></select></label>
+        <button class="btn pri" id="cLoad">Betöltés</button>
+        <button class="btn" id="cReset">Alapértékek</button>
+      </div>
+      <p class="hint" id="cSrc" style="margin:8px 0 0"></p>
+    </div>
+    <div class="card"><div class="tw"><table class="calc" id="calc"></table></div></div>
+    <div class="note"><b>Belső használatra.</b> A bérlőnek a feltételek adhatók ki (ajánlati díj, futamidő, díjmentes hónapok, fit-out hozzájárulás, közös terület aránya, üzemeltetési díj). Az ügynöki díj, a diszkontált nettó effektív díj és a bérbeadó nettó bevétele belső szám.</div>
+  </section>
+
+  <!-- BEÁLLÍTÁSOK -->
+  <section id="t-set" hidden>
+    <div class="card" id="setc"></div>
+  </section>
+</div>
+<div id="toast"></div>
+
+<script>
+const PACKS = /*ADAT-KEZDETE*/{"A":{"name":"A épület","lvl":[["−1","−1 Pince"],["0","0 Recepció"],["F","F magasföldszint"],["1","1. emelet"],["2","2. emelet"],["3","3. emelet"],["4","4. emelet (penthouse)"]],"wings":[["L","Bal (nyugat)"],["R","Jobb (kelet)"],["X","Mag és egyéb"]],"wmeas":{"−1|L":{"belso":345.0,"falkozep":365.63,"kulso":385.22},"−1|R":{"belso":223.0,"falkozep":243.32,"kulso":262.31},"F|L":{"belso":352.5,"falkozep":368.24,"kulso":379.3},"F|R":{"belso":261.8,"falkozep":275.37,"kulso":284.76},"1|L":{"belso":352.4,"falkozep":368.14,"kulso":379.2},"1|R":{"belso":261.2,"falkozep":274.74,"kulso":284.13},"2|L":{"belso":353.6,"falkozep":370.43,"kulso":381.5},"2|R":{"belso":262.8,"falkozep":275.89,"kulso":285.32},"3|L":{"belso":307.73,"falkozep":322.52,"kulso":334.82},"3|R":{"belso":226.8,"falkozep":239.29,"kulso":249.35},"4|L":{"belso":111.79,"falkozep":119.64,"kulso":126.3},"4|R":{"belso":52.0,"falkozep":57.57,"kulso":61.72}},"def":{"Közös":"common","Liftakna":"common","Gépészet":"own"},"parents":{"81":{"a":367.67},"86":{"a":273.97},"116":{"a":245.27}},"rooms":[{"id":"2","k":"−1","w":"L","code":"A-P/01","name":"Labor (ÉNy)","a":85.43,"cat":"Bérelhető"},{"id":"3","k":"−1","w":"L","code":"A-P/02","name":"Raktár 1 (DNy)","a":12.09,"cat":"Bérelhető"},{"id":"4","k":"−1","w":"L","code":"A-P/03","name":"Raktár 2 (DNy)","a":12.04,"cat":"Bérelhető"},{"id":"5","k":"−1","w":"L","code":"A-P/04","name":"Raktár 3 (DNy)","a":11.59,"cat":"Bérelhető"},{"id":"6","k":"−1","w":"L","code":"A-P/05","name":"Labor (Középső-Észak)","a":93.51,"cat":"Bérelhető"},{"id":"7","k":"−1","w":"L","code":"A-P/16","name":"Labor (Középső-Dél)","a":101.22,"cat":"Bérelhető"},{"id":"8","k":"−1","w":"L","code":"A-P/06","name":"Előtér / Szerverszoba","a":14.5,"cat":"Bérelhető"},{"id":"11","k":"−1","w":"R","code":"A-P/12","name":"Taxi / Előtér","a":10.7,"cat":"Bérelhető"},{"id":"12","k":"−1","w":"R","code":"A-P/13","name":"Étkező / Pihenő","a":51.84,"cat":"Bérelhető"},{"id":"13","k":"−1","w":"R","code":"A-P/14","name":"Raktár (ÉK)","a":62.16,"cat":"Bérelhető"},{"id":"14","k":"−1","w":"R","code":"A-P/15","name":"Logisztika / Labor (DK)","a":93.58,"cat":"Bérelhető"},{"id":"16","k":"−1","w":"X","code":"Lépcsőház","name":"Lépcsőház és Közlekedő","a":50.72,"cat":"Közös"},{"id":"17","k":"−1","w":"X","code":"A-P/07..09","name":"Mosdó / Zuhany / WC blokk","a":10.76,"cat":"Közös"},{"id":"18","k":"−1","w":"X","code":"A-P/10","name":"Takarító szertár","a":1.99,"cat":"Közös"},{"id":"19","k":"−1","w":"X","code":"A-P/11","name":"Mozgássérült WC","a":2.42,"cat":"Közös"},{"id":"20","k":"−1","w":"X","code":"Gépészet","name":"Gépészeti terület","a":14.68,"cat":"Gépészet"},{"id":"21","k":"−1","w":"X","code":"Elektromos","name":"Elektromos terület","a":11.77,"cat":"Gépészet"},{"id":"22","k":"−1","w":"X","code":"Liftakna","name":"Liftakna","a":3.94,"cat":"Liftakna"},{"id":"23","k":"−1","w":"X","code":"Lejtő","name":"Külső lejtő (rámpa)","a":36.17,"cat":"Terasz / külső"},{"id":"24","k":"0","w":"X","code":"A-091","name":"Recepció","a":19.8,"cat":"Közös"},{"id":"25","k":"0","w":"X","code":"A-092","name":"Szélfogó","a":8.64,"cat":"Közös"},{"id":"26","k":"0","w":"X","code":"A-093","name":"Bal oldali légtér (légtér padló, ±0,00)","a":24.36,"cat":"Közös"},{"id":"27","k":"0","w":"X","code":"A-094","name":"Jobb oldali légtér (légtér padló, ±0,00)","a":16.93,"cat":"Közös"},{"id":"28","k":"0","w":"X","code":"Belépő","name":"Fedett belépő terasz","a":19.89,"cat":"Terasz / külső"},{"id":"30","k":"F","w":"L","code":"A-073","name":"Iroda és Labor (b) (nyitott tér + labor + tárgyaló + SW-HW labor)","a":371.13,"cat":"Bérelhető"},{"id":"31","k":"F","w":"L","code":"A-074","name":"Szerver szoba (b)","a":2.74,"cat":"Bérelhető"},{"id":"34","k":"F","w":"R","code":"A-085","name":"Szerver szoba (j)","a":1.93,"cat":"Bérelhető"},{"id":"35","k":"F","w":"R","code":"A-088","name":"Iroda (j) (nyitott iroda + 2 tárgyaló)","a":270.32,"cat":"Bérelhető"},{"id":"37","k":"F","w":"X","code":"A-075","name":"Férfi mosdó","a":4.27,"cat":"Közös"},{"id":"38","k":"F","w":"X","code":"A-076","name":"Férfi piszoár","a":6.5,"cat":"Közös"},{"id":"39","k":"F","w":"X","code":"A-077","name":"Férfi WC 1","a":1.1,"cat":"Közös"},{"id":"40","k":"F","w":"X","code":"A-078","name":"Férfi WC 2","a":1.13,"cat":"Közös"},{"id":"41","k":"F","w":"X","code":"A-079","name":"Női mosdó","a":4.32,"cat":"Közös"},{"id":"42","k":"F","w":"X","code":"A-080","name":"Női takarító szertár","a":1.62,"cat":"Közös"},{"id":"43","k":"F","w":"X","code":"A-081","name":"Női előtér","a":4.45,"cat":"Közös"},{"id":"44","k":"F","w":"X","code":"A-082","name":"Női WC 1","a":1.17,"cat":"Közös"},{"id":"45","k":"F","w":"X","code":"A-083","name":"Női WC 2","a":1.13,"cat":"Közös"},{"id":"46","k":"F","w":"X","code":"A-084","name":"Elektromos elosztó","a":3.6,"cat":"Gépészet"},{"id":"47","k":"F","w":"X","code":"A-086","name":"Közlekedő (+1.52 m)","a":18.3,"cat":"Közös"},{"id":"48","k":"F","w":"X","code":"A-087","name":"Lépcsőház","a":20.61,"cat":"Közös"},{"id":"49","k":"F","w":"X","code":"A-089","name":"Liftakna","a":3.94,"cat":"Liftakna"},{"id":"50","k":"F","w":"X","code":"A-090","name":"Gépészeti betonkiöntés","a":3.81,"cat":"Gépészet"},{"id":"52","k":"1","w":"L","code":"A-1/01","name":"Nagyterű Iroda (b)","a":291.22,"cat":"Bérelhető"},{"id":"53","k":"1","w":"L","code":"A-1/02","name":"Tárgyaló 1 (ÉK)","a":21.55,"cat":"Bérelhető"},{"id":"54","k":"1","w":"L","code":"A-1/03","name":"Tárgyaló 2 (DNy)","a":16.75,"cat":"Bérelhető"},{"id":"55","k":"1","w":"L","code":"A-1/04","name":"Szerver szoba (b)","a":2.31,"cat":"Bérelhető"},{"id":"56","k":"1","w":"L","code":"A-1/05","name":"Iroda (Középső-Észak)","a":6.52,"cat":"Bérelhető"},{"id":"57","k":"1","w":"L","code":"A-1/06","name":"Iroda (Középső-Dél)","a":9.31,"cat":"Bérelhető"},{"id":"60","k":"1","w":"R","code":"Szerver (j)","name":"Szerver szoba (j)","a":1.9,"cat":"Bérelhető"},{"id":"61","k":"1","w":"R","code":"A-1/16","name":"Iroda (ÉK sarok)","a":26.56,"cat":"Bérelhető"},{"id":"62","k":"1","w":"R","code":"A-1/17","name":"Iroda (Középső-Kelet)","a":19.82,"cat":"Bérelhető"},{"id":"63","k":"1","w":"R","code":"A-1/18","name":"Nagyterű Iroda (j)","a":209.91,"cat":"Bérelhető"},{"id":"65","k":"1","w":"X","code":"A-1/07","name":"Férfi mosdó","a":3.74,"cat":"Közös"},{"id":"66","k":"1","w":"X","code":"A-1/08","name":"Férfi piszoár / WC előtér","a":6.52,"cat":"Közös"},{"id":"67","k":"1","w":"X","code":"A-1/09..10","name":"Férfi WC 1-2","a":2.24,"cat":"Közös"},{"id":"68","k":"1","w":"X","code":"A-1/11","name":"Női mosdó","a":3.91,"cat":"Közös"},{"id":"69","k":"1","w":"X","code":"A-1/12","name":"Női takarító szertár","a":1.48,"cat":"Közös"},{"id":"70","k":"1","w":"X","code":"A-1/13","name":"Női előtér","a":4.46,"cat":"Közös"},{"id":"71","k":"1","w":"X","code":"A-1/14..15","name":"Női WC 1-2","a":2.18,"cat":"Közös"},{"id":"72","k":"1","w":"X","code":"Elektromos","name":"Elektromos elosztó","a":3.12,"cat":"Gépészet"},{"id":"73","k":"1","w":"X","code":"Közlekedő","name":"Közlekedő","a":17.65,"cat":"Közös"},{"id":"74","k":"1","w":"X","code":"Lépcsőház","name":"Lépcsőház","a":22.15,"cat":"Közös"},{"id":"75","k":"1","w":"X","code":"Liftakna","name":"Liftakna","a":3.94,"cat":"Liftakna"},{"id":"76","k":"1","w":"X","code":"Gépészet","name":"Gépészeti betonkiöntés","a":3.24,"cat":"Gépészet"},{"id":"77","k":"1","w":"X","code":"A-1/19","name":"Pihenő (központi)","a":20.04,"cat":"Közös"},{"id":"81.1","k":"2","w":"L","code":"A-2/01","name":"Nagyterű Iroda","a":0,"cat":"Bérelhető","par":"81","rem":true},{"id":"81.2","k":"2","w":"L","code":"A-2/02","name":"Tárgyaló","a":0,"cat":"Bérelhető","par":"81","rem":false},{"id":"81.3","k":"2","w":"L","code":"A-2/03","name":"Iroda – A-2/03","a":0,"cat":"Bérelhető","par":"81","rem":false},{"id":"81.4","k":"2","w":"L","code":"A-2/04","name":"Iroda – A-2/04","a":0,"cat":"Bérelhető","par":"81","rem":false},{"id":"82","k":"2","w":"L","code":"A-2/05","name":"Szerver szoba (b)","a":2.75,"cat":"Bérelhető"},{"id":"85","k":"2","w":"R","code":"Szerver (j)","name":"Szerver szoba (j)","a":1.92,"cat":"Bérelhető"},{"id":"86.15","k":"2","w":"R","code":"A-2/15","name":"Iroda – A-2/15","a":0,"cat":"Bérelhető","par":"86","rem":false},{"id":"86.16","k":"2","w":"R","code":"A-2/16","name":"Iroda – A-2/16","a":0,"cat":"Bérelhető","par":"86","rem":false},{"id":"86.17","k":"2","w":"R","code":"A-2/17","name":"Iroda – A-2/17","a":0,"cat":"Bérelhető","par":"86","rem":false},{"id":"86.18","k":"2","w":"R","code":"A-2/18","name":"Iroda – A-2/18","a":0,"cat":"Bérelhető","par":"86","rem":false},{"id":"86.19","k":"2","w":"R","code":"A-2/19","name":"Nagyterű Iroda","a":0,"cat":"Bérelhető","par":"86","rem":true},{"id":"86.20","k":"2","w":"R","code":"A-2/20","name":"Iroda – A-2/20","a":0,"cat":"Bérelhető","par":"86","rem":false},{"id":"86.21","k":"2","w":"R","code":"A-2/21","name":"Iroda – A-2/21","a":0,"cat":"Bérelhető","par":"86","rem":false},{"id":"86.22","k":"2","w":"R","code":"A-2/22","name":"Iroda – A-2/22","a":0,"cat":"Bérelhető","par":"86","rem":false},{"id":"88","k":"2","w":"X","code":"Férfi mosdó","name":"Férfi mosdó","a":4.3,"cat":"Közös"},{"id":"89","k":"2","w":"X","code":"Férfi piszoár","name":"Férfi piszoár","a":6.62,"cat":"Közös"},{"id":"90","k":"2","w":"X","code":"Férfi WC 1-2","name":"Férfi WC 1-2","a":2.23,"cat":"Közös"},{"id":"91","k":"2","w":"X","code":"Női mosdó","name":"Női mosdó","a":4.35,"cat":"Közös"},{"id":"92","k":"2","w":"X","code":"Takarító","name":"Női takarító szertár","a":1.64,"cat":"Közös"},{"id":"93","k":"2","w":"X","code":"Női előtér","name":"Női előtér","a":4.49,"cat":"Közös"},{"id":"94","k":"2","w":"X","code":"Női WC 1-2","name":"Női WC 1-2","a":2.18,"cat":"Közös"},{"id":"95","k":"2","w":"X","code":"Elektromos","name":"Elektromos elosztó","a":3.6,"cat":"Gépészet"},{"id":"96","k":"2","w":"X","code":"Közlekedő","name":"Közlekedő","a":17.73,"cat":"Közös"},{"id":"97","k":"2","w":"X","code":"Lépcsőház","name":"Lépcsőház","a":22.14,"cat":"Közös"},{"id":"98","k":"2","w":"X","code":"Liftakna","name":"Liftakna","a":3.94,"cat":"Liftakna"},{"id":"99","k":"2","w":"X","code":"Gépészet","name":"Gépészeti betonkiöntés","a":3.81,"cat":"Gépészet"},{"id":"100","k":"2","w":"X","code":"A-2/23","name":"Pihenő (2. emeleti betondoboz)","a":19.6,"cat":"Közös"},{"id":"104","k":"3","w":"L","code":"A-3/01","name":"Iroda (ÉNy sarok)","a":23.08,"cat":"Bérelhető"},{"id":"105","k":"3","w":"L","code":"A-3/02","name":"Nagy Iroda (ÉNy)","a":81.57,"cat":"Bérelhető"},{"id":"106","k":"3","w":"L","code":"A-3/03","name":"Nagyterű Iroda (b)","a":145.87,"cat":"Bérelhető"},{"id":"107","k":"3","w":"L","code":"A-3/04","name":"Iroda (DK terasz mellett)","a":18.89,"cat":"Bérelhető"},{"id":"108","k":"3","w":"L","code":"A-3/05","name":"Tárgyaló / Belső iroda","a":18.37,"cat":"Bérelhető"},{"id":"109","k":"3","w":"L","code":"A-3/06","name":"Iroda (Mag mellett)","a":13.71,"cat":"Bérelhető"},{"id":"110","k":"3","w":"L","code":"A-3/07","name":"Iroda (Északi fal)","a":13.84,"cat":"Bérelhető"},{"id":"111","k":"3","w":"L","code":"A-3/21","name":"Tárgyaló (DNy terasz)","a":21.91,"cat":"Bérelhető"},{"id":"112","k":"3","w":"L","code":"A-3/08","name":"Szerver szoba (b)","a":2.92,"cat":"Bérelhető"},{"id":"115","k":"3","w":"R","code":"A-3/18","name":"Szerver szoba (j)","a":1.81,"cat":"Bérelhető"},{"id":"116.19","k":"3","w":"R","code":"A-3/19","name":"Iroda – A-3/19","a":0,"cat":"Bérelhető","par":"116","rem":false},{"id":"116.20","k":"3","w":"R","code":"A-3/20","name":"Nagyterű Iroda","a":0,"cat":"Bérelhető","par":"116","rem":true},{"id":"118","k":"3","w":"X","code":"A-3/09 (part)","name":"Férfi mosdó","a":4.13,"cat":"Közös"},{"id":"119","k":"3","w":"X","code":"A-3/09 (part)","name":"Férfi piszoár","a":6.58,"cat":"Közös"},{"id":"120","k":"3","w":"X","code":"A-3/10..11","name":"Férfi WC 1-2","a":2.27,"cat":"Közös"},{"id":"121","k":"3","w":"X","code":"A-3/12 (part)","name":"Női mosdó","a":4.33,"cat":"Közös"},{"id":"122","k":"3","w":"X","code":"A-3/13","name":"Női takarító szertár","a":1.56,"cat":"Közös"},{"id":"123","k":"3","w":"X","code":"A-3/12 (part)","name":"Női előtér","a":4.52,"cat":"Közös"},{"id":"124","k":"3","w":"X","code":"A-3/14..15","name":"Női WC 1-2","a":2.18,"cat":"Közös"},{"id":"125","k":"3","w":"X","code":"A-3/16","name":"Elektromos elosztó","a":3.45,"cat":"Gépészet"},{"id":"126","k":"3","w":"X","code":"Közlekedő","name":"Közlekedő (+13.35 m)","a":17.94,"cat":"Közös"},{"id":"127","k":"3","w":"X","code":"Lépcsőház","name":"Lépcsőház","a":21.76,"cat":"Közös"},{"id":"128","k":"3","w":"X","code":"Liftakna","name":"Liftakna","a":3.94,"cat":"Liftakna"},{"id":"129","k":"3","w":"X","code":"A-3/17","name":"Gépészeti betonkiöntés","a":3.81,"cat":"Gépészet"},{"id":"130.1","k":"3","w":"L","code":"Terasz","name":"Körbefutó terasz, nyugati és középső rész","a":80.67,"cat":"Terasz / külső"},{"id":"130.2","k":"3","w":"R","code":"Terasz","name":"Körbefutó terasz, keleti rész","a":35.3,"cat":"Terasz / külső"},{"id":"132","k":"4","w":"L","code":"A-4/01","name":"Nagyterű Iroda (Nyugati Penthouse szárny)","a":111.79,"cat":"Bérelhető"},{"id":"134","k":"4","w":"L","code":"A-4/01 Terasz","name":"Terasz (nyugati és DNy oldal)","a":108.6,"cat":"Terasz / külső"},{"id":"136","k":"4","w":"R","code":"A-4/05","name":"Nagyterű Iroda (Keleti Penthouse szárny)","a":52.0,"cat":"Bérelhető"},{"id":"138","k":"4","w":"R","code":"A-4/05 Terasz","name":"Terasz (keleti és ÉK oldal)","a":37.0,"cat":"Terasz / külső"},{"id":"139","k":"4","w":"X","code":"Közlekedő","name":"Közlekedő (+17.05 m)","a":8.92,"cat":"Közös"},{"id":"140","k":"4","w":"X","code":"Lépcsőház","name":"Lépcsőház (2×12×15.4 cm)","a":21.3,"cat":"Közös"},{"id":"141","k":"4","w":"X","code":"A-4/02","name":"Zuhany","a":2.82,"cat":"Közös"},{"id":"142","k":"4","w":"X","code":"A-4/03","name":"Előtér / Mosdó","a":3.89,"cat":"Közös"},{"id":"143","k":"4","w":"X","code":"A-4/04","name":"WC","a":2.01,"cat":"Közös"},{"id":"144","k":"4","w":"X","code":"Esz.","name":"Elektromos szekrény (Esz.)","a":0.67,"cat":"Gépészet"},{"id":"145","k":"4","w":"X","code":"Gépészet","name":"Gépészet betonkiöntés","a":2.95,"cat":"Gépészet"}]},"B":{"name":"B épület","lvl":[["P","−1 Pince"],["0","Földszint"],["1","1. emelet"],["2","2. emelet"],["T","Tető (lapostető)"]],"wings":[["D","Daróczi úti"],["S","Déli"],["A","Alsóhegy utcai"]],"wmeas":{"0|D":{"belso":816.42,"falkozep":890.9,"kulso":914.4},"0|S":{"belso":842.35,"falkozep":916.6,"kulso":944.6},"0|A":{"belso":1216.2,"falkozep":1329.3,"kulso":1356.0},"1|D":{"belso":743.29,"falkozep":809.8,"kulso":829.8},"1|S":{"belso":824.06,"falkozep":925.4,"kulso":945.3},"1|A":{"belso":1441.31,"falkozep":1536.7,"kulso":1574.3},"2|D":{"belso":834.64,"falkozep":889.1,"kulso":908.5},"2|S":{"belso":757.68,"falkozep":851.7,"kulso":869.6},"2|A":{"belso":1390.63,"falkozep":1467.7,"kulso":1496.0},"P|S":{"belso":38.09,"falkozep":50.1,"kulso":58.7},"P|A":{"belso":118.32,"falkozep":142.8,"kulso":160.8}},"def":{},"parents":{},"rooms":[{"id":"B-002","k":"0","w":"D","code":"B-002","name":"Raktár","a":82.22,"cat":""},{"id":"B-004","k":"0","w":"D","code":"B-004","name":"Átjáró","a":75.3,"cat":""},{"id":"B-010","k":"0","w":"S","code":"B-010","name":"Raktár","a":478.15,"cat":""},{"id":"B-011","k":"0","w":"S","code":"B-011","name":"Iroda","a":9.47,"cat":""},{"id":"B-012","k":"0","w":"S","code":"B-012","name":"Iroda","a":11.02,"cat":""},{"id":"B-013","k":"0","w":"S","code":"B-013","name":"Raktár","a":23.78,"cat":""},{"id":"B-054","k":"0","w":"D","code":"B-054","name":"Öltöző","a":5.94,"cat":""},{"id":"B-003","k":"0","w":"D","code":"B-003","name":"Raktár","a":31.43,"cat":""},{"id":"B-057","k":"0","w":"D","code":"B-057","name":"Előtér","a":2.71,"cat":""},{"id":"B-058","k":"0","w":"D","code":"B-058","name":"WC","a":7.35,"cat":""},{"id":"B-019","k":"0","w":"S","code":"B-019","name":"Raktár","a":108.79,"cat":""},{"id":"B-020","k":"0","w":"S","code":"B-020","name":"Hasz. kív.","a":6.37,"cat":""},{"id":"B-021","k":"0","w":"S","code":"B-021","name":"Hasz. kív.","a":7.84,"cat":""},{"id":"B-022","k":"0","w":"S","code":"B-022","name":"Hasz. kív.","a":11.2,"cat":""},{"id":"B-025","k":"0","w":"A","code":"B-025","name":"WC","a":8.31,"cat":""},{"id":"B-028","k":"0","w":"A","code":"B-028","name":"Öltöző","a":29.09,"cat":""},{"id":"B-029","k":"0","w":"A","code":"B-029","name":"Raktár","a":7.49,"cat":""},{"id":"B-030","k":"0","w":"A","code":"B-030","name":"WC","a":4.74,"cat":""},{"id":"B-031","k":"0","w":"A","code":"B-031","name":"Gépészet","a":69.07,"cat":""},{"id":"B-032","k":"0","w":"S","code":"B-032","name":"Előtér","a":21.62,"cat":""},{"id":"B-033","k":"0","w":"A","code":"B-033","name":"Raktár","a":351.55,"cat":""},{"id":"B-034","k":"0","w":"A","code":"B-034","name":"Hasz. kív","a":21.91,"cat":""},{"id":"B-035","k":"0","w":"A","code":"B-035","name":"Pihenő","a":15.71,"cat":""},{"id":"B-036","k":"0","w":"A","code":"B-036","name":"Előtér","a":17.19,"cat":""},{"id":"B-037","k":"0","w":"A","code":"B-037","name":"Előtér","a":12.18,"cat":""},{"id":"B-038","k":"0","w":"A","code":"B-038","name":"Raktár","a":73.52,"cat":""},{"id":"B-039","k":"0","w":"A","code":"B-039","name":"Raktár","a":57.05,"cat":""},{"id":"B-040","k":"0","w":"A","code":"B-040","name":"Raktár","a":19.55,"cat":""},{"id":"B-043","k":"0","w":"A","code":"B-043","name":"Raktár","a":299.19,"cat":""},{"id":"B-045","k":"0","w":"A","code":"B-045","name":"Előtér","a":5.39,"cat":""},{"id":"B-047","k":"0","w":"A","code":"B-047","name":"Raktár","a":10.02,"cat":""},{"id":"B-049","k":"0","w":"A","code":"B-049","name":"Iroda","a":10.72,"cat":""},{"id":"B-050","k":"0","w":"A","code":"B-050","name":"Iroda","a":17.94,"cat":""},{"id":"B-051","k":"0","w":"A","code":"B-051","name":"Raktár","a":101.29,"cat":""},{"id":"B-052","k":"0","w":"D","code":"B-052","name":"Eladótér","a":122.34,"cat":""},{"id":"B-053","k":"0","w":"D","code":"B-053","name":"Raktár","a":0.52,"cat":""},{"id":"B-055","k":"0","w":"D","code":"B-055","name":"Öltöző","a":4.16,"cat":""},{"id":"B-001","k":"0","w":"D","code":"B-001","name":"Közlekedő","a":74.58,"cat":""},{"id":"B-041","k":"0","w":"A","code":"B-041","name":"Gáz tároló","a":2.03,"cat":""},{"id":"B-042","k":"0","w":"A","code":"B-042","name":"Gáz tároló","a":2.06,"cat":""},{"id":"B-048","k":"0","w":"D","code":"B-048","name":"Raktár","a":37.82,"cat":""},{"id":"B-015","k":"0","w":"S","code":"B-015","name":"Közekedő","a":19.99,"cat":""},{"id":"B-024","k":"0","w":"S","code":"B-024","name":"Előtér","a":64.41,"cat":""},{"id":"B-062","k":"0","w":"A","code":"B-062","name":"Lépcsőház","a":30.32,"cat":""},{"id":"B-063","k":"0","w":"S","code":"B-063","name":"Lépcsőház","a":28.95,"cat":""},{"id":"B-009","k":"0","w":"D","code":"B-009","name":"Hasz. kív. hely.","a":56.27,"cat":""},{"id":"B-008","k":"0","w":"D","code":"B-008","name":"Hasz. kív. hely.","a":122.87,"cat":""},{"id":"B-007","k":"0","w":"D","code":"B-007","name":"Hasz. kív. hely.","a":54.99,"cat":""},{"id":"B-006","k":"0","w":"D","code":"B-006","name":"Hasz. kív. hely.","a":29.59,"cat":""},{"id":"B-005","k":"0","w":"D","code":"B-005","name":"Hasz. kív. hely.","a":92.12,"cat":""},{"id":"B-026","k":"0","w":"A","code":"B-026","name":"Zuhanyzó","a":10.27,"cat":""},{"id":"B-014","k":"0","w":"S","code":"B-014","name":"Előtér","a":5.49,"cat":""},{"id":"B-056","k":"0","w":"D","code":"B-056","name":"Étkező","a":6.71,"cat":""},{"id":"B-018","k":"0","w":"S","code":"B-018","name":"Kompressor","a":25.52,"cat":""},{"id":"B-061","k":"0","w":"A","code":"B-061","name":"Pince","a":9.93,"cat":""},{"id":"B-046","k":"0","w":"A","code":"B-046","name":"Közlekedő","a":7.94,"cat":""},{"id":"B-059","k":"0","w":"D","code":"B-059","name":"Liftakna","a":4.04,"cat":""},{"id":"B-023","k":"0","w":"S","code":"B-023","name":"Liftakna","a":7.16,"cat":""},{"id":"B-060","k":"0","w":"D","code":"B-060","name":"Lift gh.","a":5.46,"cat":""},{"id":"B-044","k":"0","w":"A","code":"B-044","name":"WC","a":12.64,"cat":""},{"id":"B-016","k":"0","w":"S","code":"B-016","name":"Raktár","a":4.6,"cat":""},{"id":"B-017","k":"0","w":"S","code":"B-017","name":"WC","a":7.99,"cat":""},{"id":"B-027","k":"0","w":"A","code":"B-027","name":"Előtér","a":9.1,"cat":""},{"id":"B-130","k":"1","w":"S","code":"B-130","name":"Közl.","a":4.54,"cat":""},{"id":"B-131","k":"1","w":"S","code":"B-131","name":"Takarító kamra","a":13.29,"cat":""},{"id":"B-132","k":"1","w":"S","code":"B-132","name":"Előtér","a":5.95,"cat":""},{"id":"B-135","k":"1","w":"S","code":"B-135","name":"WC","a":4.31,"cat":""},{"id":"B-134","k":"1","w":"S","code":"B-134","name":"Mosdó","a":13.68,"cat":""},{"id":"B-102","k":"1","w":"D","code":"B-102","name":"Hasz. kív.","a":16.37,"cat":""},{"id":"B-103","k":"1","w":"D","code":"B-103","name":"Hasz. kív.","a":14.08,"cat":""},{"id":"B-104","k":"1","w":"D","code":"B-104","name":"Hasz. kív.","a":13.03,"cat":""},{"id":"B-106","k":"1","w":"D","code":"B-106","name":"Hasz. kív.","a":17.05,"cat":""},{"id":"B-105","k":"1","w":"D","code":"B-105","name":"Hasz. kív.","a":4.84,"cat":""},{"id":"B-107","k":"1","w":"D","code":"B-107","name":"Hasz. kív.","a":30.1,"cat":""},{"id":"B-109","k":"1","w":"D","code":"B-109","name":"Hasz. kív.","a":81.8,"cat":""},{"id":"B-110","k":"1","w":"D","code":"B-110","name":"Hasz. kív.","a":88.01,"cat":""},{"id":"B-108","k":"1","w":"D","code":"B-108","name":"Hasz. kív.","a":18.29,"cat":""},{"id":"B-111","k":"1","w":"D","code":"B-111","name":"Hasz. kív.","a":28.08,"cat":""},{"id":"B-112","k":"1","w":"D","code":"B-112","name":"Hasz. kív.","a":189.08,"cat":""},{"id":"B-113","k":"1","w":"D","code":"B-113","name":"Hasz. kív.","a":55.61,"cat":""},{"id":"B-114","k":"1","w":"D","code":"B-114","name":"Iroda","a":19.57,"cat":""},{"id":"B-115","k":"1","w":"D","code":"B-115","name":"Műhely","a":46.6,"cat":""},{"id":"B-118","k":"1","w":"D","code":"B-118","name":"Közlekedő","a":15.31,"cat":""},{"id":"B-119","k":"1","w":"S","code":"B-119","name":"Mosdó","a":17.95,"cat":""},{"id":"B-120","k":"1","w":"S","code":"B-120","name":"WC","a":5.76,"cat":""},{"id":"B-125","k":"1","w":"S","code":"B-125","name":"Folyosó","a":42.64,"cat":""},{"id":"B-128","k":"1","w":"S","code":"B-128","name":"Előtér","a":23.88,"cat":""},{"id":"B-136","k":"1","w":"S","code":"B-136","name":"Zuanyzó","a":15.66,"cat":""},{"id":"B-133","k":"1","w":"S","code":"B-133","name":"","a":126.83,"cat":""},{"id":"B-144","k":"1","w":"S","code":"B-144","name":"Folyosó","a":20.3,"cat":""},{"id":"B-146","k":"1","w":"A","code":"B-146","name":"Fémm. üzem","a":58.26,"cat":""},{"id":"B-147","k":"1","w":"A","code":"B-147","name":"Fémm. üzem","a":17.83,"cat":""},{"id":"B-148","k":"1","w":"A","code":"B-148","name":"Hasz. kív.","a":8.48,"cat":""},{"id":"B-149","k":"1","w":"A","code":"B-149","name":"Raktár","a":69.9,"cat":""},{"id":"B-150","k":"1","w":"A","code":"B-150","name":"Raktár","a":144.76,"cat":""},{"id":"B-151","k":"1","w":"A","code":"B-151","name":"Raktár","a":295.24,"cat":""},{"id":"B-152","k":"1","w":"A","code":"B-152","name":"Folyosó","a":126.78,"cat":""},{"id":"B-153","k":"1","w":"A","code":"B-153","name":"Raktár","a":73.86,"cat":""},{"id":"B-154","k":"1","w":"A","code":"B-154","name":"Szegecselő","a":73.59,"cat":""},{"id":"B-155","k":"1","w":"A","code":"B-155","name":"Nyomda","a":492.19,"cat":""},{"id":"B-156","k":"1","w":"A","code":"B-156","name":"Iroda","a":16.6,"cat":""},{"id":"B-157","k":"1","w":"D","code":"B-157","name":"WC","a":10.55,"cat":""},{"id":"B-158","k":"1","w":"D","code":"B-158","name":"Előtér","a":7.22,"cat":""},{"id":"B-159","k":"1","w":"D","code":"B-159","name":"Előtér","a":2.96,"cat":""},{"id":"B-160","k":"1","w":"D","code":"B-160","name":"WC","a":7.15,"cat":""},{"id":"B-101","k":"1","w":"D","code":"B-101","name":"Közlekedő","a":64.65,"cat":""},{"id":"B-161","k":"1","w":"S","code":"B-161","name":"Lépcsőház","a":28.99,"cat":""},{"id":"B-129","k":"1","w":"S","code":"B-129","name":"Közlekedő","a":16.23,"cat":""},{"id":"B-145","k":"1","w":"S","code":"B-145","name":"Közlekedő","a":99.63,"cat":""},{"id":"B-162","k":"1","w":"A","code":"B-162","name":"Lépcsőház","a":35.01,"cat":""},{"id":"B-163","k":"1","w":"A","code":"B-163","name":"Lépcsőház","a":25.31,"cat":""},{"id":"B-165","k":"1","w":"S","code":"B-165","name":"Liftakna","a":6.84,"cat":""},{"id":"B-164","k":"1","w":"D","code":"B-164","name":"Liftakna","a":4.04,"cat":""},{"id":"B-122","k":"1","w":"S","code":"B-122","name":"Mosdó","a":18.12,"cat":""},{"id":"B-124","k":"1","w":"S","code":"B-124","name":"Zuhanyzó","a":12.61,"cat":""},{"id":"B-121","k":"1","w":"S","code":"B-121","name":"Zuhanyzó","a":12.45,"cat":""},{"id":"B-117","k":"1","w":"D","code":"B-117","name":"Tea konyha","a":8.9,"cat":""},{"id":"B-116","k":"1","w":"S","code":"B-116","name":"Műhely","a":97.01,"cat":""},{"id":"B-123","k":"1","w":"S","code":"B-123","name":"WC","a":5.76,"cat":""},{"id":"B-126","k":"1","w":"S","code":"B-126","name":"Műhely","a":169.94,"cat":""},{"id":"B-127","k":"1","w":"S","code":"B-127","name":"Előtér","a":8.93,"cat":""},{"id":"B-138","k":"1","w":"S","code":"B-138","name":"Eü. fülke","a":4.11,"cat":""},{"id":"B-139","k":"1","w":"S","code":"B-139","name":"Eü. fülke","a":4.21,"cat":""},{"id":"B-137","k":"1","w":"S","code":"B-137","name":"Előtér","a":27.22,"cat":""},{"id":"B-140","k":"1","w":"S","code":"B-140","name":"WC","a":3.72,"cat":""},{"id":"B-141","k":"1","w":"A","code":"B-141","name":"Előtér","a":3.5,"cat":""},{"id":"B-142","k":"1","w":"S","code":"B-142","name":"WC","a":7.9,"cat":""},{"id":"B-143","k":"1","w":"S","code":"B-143","name":"Előtér","a":5.6,"cat":""},{"id":"B-225","k":"2","w":"S","code":"B-225","name":"Papír műhely","a":8,"cat":""},{"id":"B-243","k":"2","w":"A","code":"B-243","name":"Előtér","a":6.45,"cat":""},{"id":"B-259","k":"2","w":"D","code":"B-259","name":"WC","a":6.76,"cat":""},{"id":"B-227","k":"2","w":"S","code":"B-227","name":"Papír műhely","a":125.99,"cat":""},{"id":"B-242","k":"2","w":"A","code":"B-242","name":"Iroda","a":13.46,"cat":""},{"id":"B-233","k":"2","w":"S","code":"B-233","name":"Előtér","a":25.55,"cat":""},{"id":"B-201","k":"2","w":"D","code":"B-201","name":"Közlekedő","a":63.61,"cat":""},{"id":"B-203","k":"2","w":"D","code":"B-203","name":"Raktár","a":17.16,"cat":""},{"id":"B-202","k":"2","w":"D","code":"B-202","name":"Raktár","a":30.77,"cat":""},{"id":"B-204","k":"2","w":"D","code":"B-204","name":"Raktár","a":50.39,"cat":""},{"id":"B-206","k":"2","w":"D","code":"B-206","name":"Iroda","a":34.44,"cat":""},{"id":"B-207","k":"2","w":"D","code":"B-207","name":"Iroda","a":75.94,"cat":""},{"id":"B-234","k":"2","w":"A","code":"B-234","name":"Előtér","a":3.7,"cat":""},{"id":"B-224","k":"2","w":"S","code":"B-224","name":"Hasz. kív.","a":4.6,"cat":""},{"id":"B-210","k":"2","w":"S","code":"B-210","name":"Rajztár","a":17.88,"cat":""},{"id":"B-208","k":"2","w":"S","code":"B-208","name":"Előadó","a":45.42,"cat":""},{"id":"B-209","k":"2","w":"D","code":"B-209","name":"Közlekedő","a":32.39,"cat":""},{"id":"B-226","k":"2","w":"S","code":"B-226","name":"Előtér","a":5.61,"cat":""},{"id":"B-211","k":"2","w":"S","code":"B-211","name":"Zuhanyzó","a":19.46,"cat":""},{"id":"B-228","k":"2","w":"S","code":"B-228","name":"Közlekedő","a":4.37,"cat":""},{"id":"B-229","k":"2","w":"S","code":"B-229","name":"WC","a":4.03,"cat":""},{"id":"B-231","k":"2","w":"S","code":"B-231","name":"Zuhanyzó","a":17.79,"cat":""},{"id":"B-212","k":"2","w":"S","code":"B-212","name":"Raktár","a":46.93,"cat":""},{"id":"B-244","k":"2","w":"A","code":"B-244","name":"Iroda","a":10.43,"cat":""},{"id":"B-216","k":"2","w":"S","code":"B-216","name":"Raktár","a":16.32,"cat":""},{"id":"B-232","k":"2","w":"S","code":"B-232","name":"Folyosó","a":19.94,"cat":""},{"id":"B-214","k":"2","w":"S","code":"B-214","name":"Folyosó","a":43.31,"cat":""},{"id":"B-218","k":"2","w":"S","code":"B-218","name":"Raktár","a":5.94,"cat":""},{"id":"B-217","k":"2","w":"S","code":"B-217","name":"Műszer labor","a":72.24,"cat":""},{"id":"B-221","k":"2","w":"S","code":"B-221","name":"Raktár","a":5.05,"cat":""},{"id":"B-222","k":"2","w":"S","code":"B-222","name":"Előtér","a":23.25,"cat":""},{"id":"B-235","k":"2","w":"S","code":"B-235","name":"WC","a":4.15,"cat":""},{"id":"B-241","k":"2","w":"A","code":"B-241","name":"Iroda","a":26.44,"cat":""},{"id":"B-246","k":"2","w":"A","code":"B-246","name":"Asztalos műhely","a":119.6,"cat":""},{"id":"B-247","k":"2","w":"A","code":"B-247","name":"Műhely","a":27.6,"cat":""},{"id":"B-248","k":"2","w":"A","code":"B-248","name":"Raktár","a":1032,"cat":""},{"id":"B-249","k":"2","w":"A","code":"B-249","name":"Raktár","a":11.52,"cat":""},{"id":"B-250","k":"2","w":"A","code":"B-250","name":"raktár","a":3.25,"cat":""},{"id":"B-251","k":"2","w":"A","code":"B-251","name":"Előtér","a":2.5,"cat":""},{"id":"B-252","k":"2","w":"A","code":"B-252","name":"Mérő sz.","a":6.91,"cat":""},{"id":"B-253","k":"2","w":"A","code":"B-253","name":"Hasz. kív.","a":21.63,"cat":""},{"id":"B-254","k":"2","w":"A","code":"B-254","name":"Raktár","a":21.23,"cat":""},{"id":"B-255","k":"2","w":"D","code":"B-255","name":"Raktár","a":47.85,"cat":""},{"id":"B-256","k":"2","w":"D","code":"B-256","name":"Előtér","a":3.77,"cat":""},{"id":"B-223","k":"2","w":"S","code":"B-223","name":"Közlekedő","a":16.17,"cat":""},{"id":"B-260","k":"2","w":"A","code":"B-260","name":"Lépcsőház","a":25.31,"cat":""},{"id":"B-240","k":"2","w":"S","code":"B-240","name":"Közlekedő","a":91.98,"cat":""},{"id":"B-264","k":"2","w":"A","code":"B-264","name":"Lépcsőház","a":34.67,"cat":""},{"id":"B-263","k":"2","w":"S","code":"B-263","name":"Liftakna","a":6.84,"cat":""},{"id":"B-205","k":"2","w":"D","code":"B-205","name":"Fotó studió","a":453.73,"cat":""},{"id":"B-230","k":"2","w":"S","code":"B-230","name":"Mosdó","a":13.95,"cat":""},{"id":"B-238","k":"2","w":"S","code":"B-238","name":"WC","a":5.64,"cat":""},{"id":"B-239","k":"2","w":"A","code":"B-239","name":"WC","a":7.89,"cat":""},{"id":"B-215","k":"2","w":"S","code":"B-215","name":"Raktár","a":41.22,"cat":""},{"id":"B-213","k":"2","w":"S","code":"B-213","name":"Zuhanyzó","a":19.79,"cat":""},{"id":"B-219","k":"2","w":"S","code":"B-219","name":"Előtér","a":4.21,"cat":""},{"id":"B-220","k":"2","w":"S","code":"B-220","name":"Előtér","a":4.44,"cat":""},{"id":"B-262","k":"2","w":"S","code":"B-262","name":"Lépcsőház","a":28.68,"cat":""},{"id":"B-236","k":"2","w":"S","code":"B-236","name":"Eü. fülke","a":4.42,"cat":""},{"id":"B-237","k":"2","w":"S","code":"B-237","name":"Eü. fülke","a":4.51,"cat":""},{"id":"B-245","k":"2","w":"A","code":"B-245","name":"Raktár","a":16.04,"cat":""},{"id":"B-261","k":"2","w":"D","code":"B-261","name":"Liftakna","a":4.04,"cat":""},{"id":"B-258","k":"2","w":"D","code":"B-258","name":"Előtér","a":3.46,"cat":""},{"id":"B-257","k":"2","w":"D","code":"B-257","name":"WC","a":10.33,"cat":""},{"id":"B-P01","k":"P","w":"S","code":"B-P01","name":"Közl.","a":13.35,"cat":""},{"id":"B-P02","k":"P","w":"S","code":"B-P02","name":"Előtér","a":4.37,"cat":""},{"id":"B-P06","k":"P","w":"A","code":"B-P06","name":"Pince","a":26.94,"cat":""},{"id":"B-P07","k":"P","w":"A","code":"B-P07","name":"Előtér","a":24.87,"cat":""},{"id":"B-P08","k":"P","w":"A","code":"B-P08","name":"Hasz. kív.","a":66.51,"cat":""},{"id":"B-P03","k":"P","w":"S","code":"B-P03","name":"Raktár","a":8.38,"cat":""},{"id":"B-P04","k":"P","w":"S","code":"B-P04","name":"Raktár","a":7.5,"cat":""},{"id":"B-P05","k":"P","w":"S","code":"B-P05","name":"Raktár","a":4.49,"cat":""},{"id":"B-T03","k":"T","w":"D","code":"B-T03","name":"Liftgépház","a":5.85,"cat":""},{"id":"B-T02","k":"T","w":"S","code":"B-T02","name":"Lift gh.","a":14.84,"cat":""},{"id":"B-T01","k":"T","w":"S","code":"B-T01","name":"Antenna hely.","a":5.98,"cat":""},{"id":"B-T04","k":"T","w":"A","code":"B-T04","name":"Tetőkijárat","a":4.84,"cat":""}]},"D":{"name":"D épület","lvl":[["0","Földszint"],["1","1. emelet"],["T","Padlástér"]],"wings":[["F","Fő szárny"],["NY","Ferde szárny (ÉNy)"],["K","Keleti szárny (ÉK)"]],"wmeas":{"0|F":{"belso":1324.56,"falkozep":1461.13,"kulso":1523.16},"0|NY":{"belso":335.96,"falkozep":368.85,"kulso":393.06},"0|K":{"belso":283.07,"falkozep":315.91,"kulso":336.26},"1|F":{"belso":1175.02,"falkozep":1325.52,"kulso":1390.79},"1|NY":{"belso":326.48,"falkozep":368.85,"kulso":393.07},"1|K":{"belso":284.14,"falkozep":315.91,"kulso":336.26},"T|F":{"belso":1272.03,"falkozep":1341.96,"kulso":1390.79},"T|NY":{"belso":356.25,"falkozep":380.67,"kulso":393.07},"T|K":{"belso":306.8,"falkozep":326.31,"kulso":336.26}},"def":{},"parents":{},"rooms":[{"id":"D-001","k":"0","w":"F","code":"D-001","name":"Iroda","a":304.19,"cat":""},{"id":"D-002","k":"0","w":"F","code":"D-002","name":"Pénztár","a":3.65,"cat":""},{"id":"D-003","k":"0","w":"F","code":"D-003","name":"Iroda","a":10.32,"cat":""},{"id":"D-004","k":"0","w":"F","code":"D-004","name":"Iroda","a":19.95,"cat":""},{"id":"D-005","k":"0","w":"F","code":"D-005","name":"Iroda","a":16.54,"cat":""},{"id":"D-006","k":"0","w":"F","code":"D-006","name":"Előcsarnok","a":92.12,"cat":""},{"id":"D-007","k":"0","w":"F","code":"D-007","name":"Porta","a":3.49,"cat":""},{"id":"D-008","k":"0","w":"F","code":"D-008","name":"Porta","a":6.7,"cat":""},{"id":"D-009","k":"0","w":"F","code":"D-009","name":"Porta","a":6.61,"cat":""},{"id":"D-010","k":"0","w":"F","code":"D-010","name":"Porta","a":5.69,"cat":""},{"id":"D-011","k":"0","w":"F","code":"D-011","name":"Előtér","a":10.1,"cat":""},{"id":"D-012","k":"0","w":"F","code":"D-012","name":"Kölcsönző","a":168.52,"cat":""},{"id":"D-013","k":"0","w":"F","code":"D-013","name":"Raktár","a":32.91,"cat":""},{"id":"D-014","k":"0","w":"F","code":"D-014","name":"Iroda","a":10.65,"cat":""},{"id":"D-015","k":"0","w":"F","code":"D-015","name":"Raktár","a":21.59,"cat":""},{"id":"D-016","k":"0","w":"F","code":"D-016","name":"Raktár","a":130.78,"cat":""},{"id":"D-017","k":"0","w":"F","code":"D-017","name":"Raktár","a":28.37,"cat":""},{"id":"D-018","k":"0","w":"F","code":"D-018","name":"Raktár","a":26.88,"cat":""},{"id":"D-019","k":"0","w":"F","code":"D-019","name":"Iroda","a":36.32,"cat":""},{"id":"D-020","k":"0","w":"F","code":"D-020","name":"Közlekedő","a":8.71,"cat":""},{"id":"D-021","k":"0","w":"F","code":"D-021","name":"Iroda","a":11.42,"cat":""},{"id":"D-022","k":"0","w":"F","code":"D-022","name":"Iroda","a":9.47,"cat":""},{"id":"D-023","k":"0","w":"F","code":"D-023","name":"Raktár","a":69.11,"cat":""},{"id":"D-024","k":"0","w":"F","code":"D-024","name":"Kezelő","a":9.39,"cat":""},{"id":"D-025","k":"0","w":"F","code":"D-025","name":"Előtér","a":5.4,"cat":""},{"id":"D-026","k":"0","w":"F","code":"D-026","name":"Raktár","a":2.16,"cat":""},{"id":"D-027","k":"0","w":"F","code":"D-027","name":"Tel.közp.","a":34.5,"cat":""},{"id":"D-028","k":"0","w":"F","code":"D-028","name":"Raktár","a":18.12,"cat":""},{"id":"D-029","k":"0","w":"K","code":"D-029","name":"Raktár","a":18.82,"cat":""},{"id":"D-030","k":"0","w":"K","code":"D-030","name":"Fénymásoló","a":67.53,"cat":""},{"id":"D-031","k":"0","w":"K","code":"D-031","name":"Raktár","a":28.89,"cat":""},{"id":"D-032","k":"0","w":"K","code":"D-032","name":"Fénymásoló","a":58.74,"cat":""},{"id":"D-033","k":"0","w":"K","code":"D-033","name":"Iroda","a":19.56,"cat":""},{"id":"D-034","k":"0","w":"K","code":"D-034","name":"Felvevő","a":39.06,"cat":""},{"id":"D-035","k":"0","w":"K","code":"D-035","name":"Iroda","a":26.42,"cat":""},{"id":"D-036","k":"0","w":"K","code":"D-036","name":"Előtér","a":8.24,"cat":""},{"id":"D-037","k":"0","w":"K","code":"D-037","name":"Öltöző","a":9.96,"cat":""},{"id":"D-038","k":"0","w":"K","code":"D-038","name":"WC","a":5.85,"cat":""},{"id":"D-039","k":"0","w":"F","code":"D-039","name":"WC","a":11.36,"cat":""},{"id":"D-040","k":"0","w":"F","code":"D-040","name":"WC","a":5.15,"cat":""},{"id":"D-041","k":"0","w":"F","code":"D-041","name":"Lépcsőház","a":24.02,"cat":""},{"id":"D-042","k":"0","w":"F","code":"D-042","name":"Előtér","a":13.22,"cat":""},{"id":"D-043","k":"0","w":"F","code":"D-043","name":"Raktár","a":59.54,"cat":""},{"id":"D-044","k":"0","w":"F","code":"D-044","name":"Raktár","a":11.18,"cat":""},{"id":"D-045","k":"0","w":"F","code":"D-045","name":"Raktár","a":11.07,"cat":""},{"id":"D-046","k":"0","w":"F","code":"D-046","name":"Raktár","a":31.11,"cat":""},{"id":"D-047","k":"0","w":"F","code":"D-047","name":"Előtér","a":13.21,"cat":""},{"id":"D-048","k":"0","w":"F","code":"D-048","name":"WC","a":14.84,"cat":""},{"id":"D-049","k":"0","w":"F","code":"D-049","name":"Előtér","a":4.93,"cat":""},{"id":"D-050","k":"0","w":"F","code":"D-050","name":"Raktár","a":3.36,"cat":""},{"id":"D-051","k":"0","w":"F","code":"D-051","name":"WC","a":17.91,"cat":""},{"id":"D-052","k":"0","w":"NY","code":"D-052","name":"Raktár","a":230.11,"cat":""},{"id":"D-053","k":"0","w":"NY","code":"D-053","name":"Iroda","a":34.1,"cat":""},{"id":"D-054","k":"0","w":"NY","code":"D-054","name":"WC","a":6.34,"cat":""},{"id":"D-055","k":"0","w":"NY","code":"D-055","name":"WC","a":5.76,"cat":""},{"id":"D-056","k":"0","w":"NY","code":"D-056","name":"Előtér","a":9.88,"cat":""},{"id":"D-057","k":"0","w":"NY","code":"D-057","name":"Iroda","a":15.73,"cat":""},{"id":"D-058","k":"0","w":"NY","code":"D-058","name":"Raktár","a":34.04,"cat":""},{"id":"D-101","k":"1","w":"F","code":"D-101","name":"Iroda","a":35.34,"cat":""},{"id":"D-102","k":"1","w":"F","code":"D-102","name":"Iroda","a":35.36,"cat":""},{"id":"D-103","k":"1","w":"F","code":"D-103","name":"Iroda","a":47.88,"cat":""},{"id":"D-104","k":"1","w":"F","code":"D-104","name":"Öltöző","a":5.96,"cat":""},{"id":"D-105","k":"1","w":"F","code":"D-105","name":"Előtér","a":9.07,"cat":""},{"id":"D-106","k":"1","w":"F","code":"D-106","name":"Előtér","a":3.05,"cat":""},{"id":"D-107","k":"1","w":"F","code":"D-107","name":"Előtér","a":9.58,"cat":""},{"id":"D-107/2","k":"1","w":"F","code":"D-107/2","name":"WC","a":1.82,"cat":""},{"id":"D-108","k":"1","w":"F","code":"D-108","name":"Iroda","a":24.61,"cat":""},{"id":"D-109","k":"1","w":"F","code":"D-109","name":"Iroda","a":70.12,"cat":""},{"id":"D-110","k":"1","w":"F","code":"D-110","name":"Iroda","a":10.3,"cat":""},{"id":"D-111","k":"1","w":"F","code":"D-111","name":"Iroda","a":10.64,"cat":""},{"id":"D-112","k":"1","w":"F","code":"D-112","name":"Iroda","a":9.83,"cat":""},{"id":"D-113","k":"1","w":"F","code":"D-113","name":"Iroda","a":10.01,"cat":""},{"id":"D-114","k":"1","w":"F","code":"D-114","name":"Iroda","a":14.13,"cat":""},{"id":"D-115","k":"1","w":"F","code":"D-115","name":"Iroda","a":16.16,"cat":""},{"id":"D-116","k":"1","w":"F","code":"D-116","name":"Iroda","a":19.36,"cat":""},{"id":"D-117","k":"1","w":"F","code":"D-117","name":"Iroda","a":33.55,"cat":""},{"id":"D-118","k":"1","w":"F","code":"D-118","name":"Iroda","a":18.33,"cat":""},{"id":"D-119","k":"1","w":"F","code":"D-119","name":"Iroda","a":16.29,"cat":""},{"id":"D-120","k":"1","w":"F","code":"D-120","name":"Iroda","a":17.43,"cat":""},{"id":"D-121","k":"1","w":"F","code":"D-121","name":"Iroda","a":19.07,"cat":""},{"id":"D-122","k":"1","w":"F","code":"D-122","name":"Iroda","a":50.49,"cat":""},{"id":"D-123","k":"1","w":"F","code":"D-123","name":"Iroda","a":12.07,"cat":""},{"id":"D-124","k":"1","w":"F","code":"D-124","name":"Iroda","a":11.74,"cat":""},{"id":"D-125","k":"1","w":"F","code":"D-125","name":"Iroda","a":28.59,"cat":""},{"id":"D-126","k":"1","w":"F","code":"D-126","name":"Iroda","a":21.09,"cat":""},{"id":"D-127","k":"1","w":"F","code":"D-127","name":"Iroda","a":11.33,"cat":""},{"id":"D-128","k":"1","w":"F","code":"D-128","name":"Iroda","a":17.63,"cat":""},{"id":"D-129","k":"1","w":"F","code":"D-129","name":"Iroda","a":52.05,"cat":""},{"id":"D-130","k":"1","w":"F","code":"D-130","name":"Iroda","a":36.08,"cat":""},{"id":"D-131","k":"1","w":"F","code":"D-131","name":"Iroda","a":33.98,"cat":""},{"id":"D-132","k":"1","w":"F","code":"D-132","name":"Iroda","a":17.33,"cat":""},{"id":"D-133","k":"1","w":"F","code":"D-133","name":"Iroda","a":23.29,"cat":""},{"id":"D-134","k":"1","w":"F","code":"D-134","name":"Iroda","a":10.38,"cat":""},{"id":"D-135","k":"1","w":"F","code":"D-135","name":"Iroda","a":11.04,"cat":""},{"id":"D-136","k":"1","w":"F","code":"D-136","name":"Iroda","a":36.54,"cat":""},{"id":"D-137","k":"1","w":"F","code":"D-137","name":"Iroda","a":24.01,"cat":""},{"id":"D-138","k":"1","w":"F","code":"D-138","name":"Iroda","a":23.86,"cat":""},{"id":"D-139","k":"1","w":"F","code":"D-139","name":"Iroda","a":24.45,"cat":""},{"id":"D-140","k":"1","w":"F","code":"D-140","name":"Közlekedő","a":258.27,"cat":""},{"id":"D-142","k":"1","w":"K","code":"D-142","name":"Iroda","a":13.53,"cat":""},{"id":"D-143","k":"1","w":"K","code":"D-143","name":"Iroda","a":13.2,"cat":""},{"id":"D-144","k":"1","w":"K","code":"D-144","name":"Iroda","a":14.67,"cat":""},{"id":"D-145","k":"1","w":"K","code":"D-145","name":"Iroda","a":10.41,"cat":""},{"id":"D-146","k":"1","w":"K","code":"D-146","name":"Iroda","a":21.56,"cat":""},{"id":"D-147","k":"1","w":"K","code":"D-147","name":"Iroda","a":29.99,"cat":""},{"id":"D-148","k":"1","w":"K","code":"D-148","name":"Iroda","a":18.72,"cat":""},{"id":"D-149","k":"1","w":"K","code":"D-149","name":"Iroda","a":39.6,"cat":""},{"id":"D-150","k":"1","w":"K","code":"D-150","name":"Iroda","a":31.21,"cat":""},{"id":"D-151","k":"1","w":"K","code":"D-151","name":"Iroda","a":26.64,"cat":""},{"id":"D-152","k":"1","w":"K","code":"D-152","name":"Öltöző","a":7.72,"cat":""},{"id":"D-153","k":"1","w":"K","code":"D-153","name":"Előtér","a":2.11,"cat":""},{"id":"D-154","k":"1","w":"K","code":"D-154","name":"Előtér","a":5.87,"cat":""},{"id":"D-155","k":"1","w":"NY","code":"D-155","name":"Iroda","a":19.95,"cat":""},{"id":"D-156","k":"1","w":"NY","code":"D-156","name":"Iroda","a":32.78,"cat":""},{"id":"D-157","k":"1","w":"NY","code":"D-157","name":"Iroda","a":23.98,"cat":""},{"id":"D-158","k":"1","w":"NY","code":"D-158","name":"Raktár","a":11.99,"cat":""},{"id":"D-159","k":"1","w":"NY","code":"D-159","name":"Tárgyaló","a":16.88,"cat":""},{"id":"D-160","k":"1","w":"NY","code":"D-160","name":"Iroda","a":14.34,"cat":""},{"id":"D-161","k":"1","w":"NY","code":"D-161","name":"Iroda","a":17.12,"cat":""},{"id":"D-162","k":"1","w":"NY","code":"D-162","name":"Iroda","a":44.6,"cat":""},{"id":"D-163","k":"1","w":"NY","code":"D-163","name":"Raktár","a":3.36,"cat":""},{"id":"D-164","k":"1","w":"NY","code":"D-164","name":"Iroda","a":11.05,"cat":""},{"id":"D-165","k":"1","w":"NY","code":"D-165","name":"Iroda","a":12.13,"cat":""},{"id":"D-166","k":"1","w":"NY","code":"D-166","name":"Iroda","a":10.67,"cat":""},{"id":"D-167","k":"1","w":"NY","code":"D-167","name":"Iroda","a":9.83,"cat":""},{"id":"D-168","k":"1","w":"NY","code":"D-168","name":"Tárgyaló","a":23.69,"cat":""},{"id":"D-169","k":"1","w":"NY","code":"D-169","name":"Teakonyha","a":8.29,"cat":""},{"id":"D-170","k":"1","w":"NY","code":"D-170","name":"közlekedő","a":53.74,"cat":""},{"id":"D-171","k":"1","w":"NY","code":"D-171","name":"WC","a":6.32,"cat":""},{"id":"D-172","k":"1","w":"NY","code":"D-172","name":"WC","a":5.76,"cat":""},{"id":"D-173","k":"1","w":"F","code":"D-173","name":"WC","a":17.96,"cat":""},{"id":"D-174","k":"1","w":"F","code":"D-174","name":"WC","a":14.84,"cat":""},{"id":"D-175","k":"1","w":"F","code":"D-175","name":"Raktár","a":3.36,"cat":""},{"id":"D-176","k":"1","w":"F","code":"D-176","name":"Előtér","a":4.93,"cat":""},{"id":"D-177","k":"1","w":"F","code":"D-177","name":"Lépcsőház","a":24.23,"cat":""},{"id":"D-178","k":"1","w":"F","code":"D-178","name":"WC","a":11.35,"cat":""},{"id":"D-179","k":"1","w":"F","code":"D-179","name":"WC","a":5.15,"cat":""},{"id":"D-T01","k":"T","w":"F","code":"D-T01","name":"Raktár","a":18.08,"cat":""},{"id":"D-T02","k":"T","w":"F","code":"D-T02","name":"Raktár","a":21.35,"cat":""},{"id":"D-T03","k":"T","w":"F","code":"D-T03","name":"Raktár","a":1.94,"cat":""},{"id":"D-T04","k":"T","w":"F","code":"D-T04","name":"Raktár","a":13.25,"cat":""},{"id":"D-T05","k":"T","w":"F","code":"D-T05","name":"Raktár","a":5.84,"cat":""},{"id":"D-T06","k":"T","w":"F","code":"D-T06","name":"Lépcsőház","a":21.29,"cat":""},{"id":"D-T07","k":"T","w":"F","code":"D-T07","name":"Padlástér","a":732.07,"cat":""},{"id":"D-T08","k":"T","w":"F","code":"D-T08","name":"Padlástér","a":588.57,"cat":""},{"id":"D-T09","k":"T","w":"K","code":"D-T09","name":"Padlástér","a":532.69,"cat":""}]}}/*ADAT-VÉGE*/;
+</script>
+<script>
+// ---------- alapok ----------
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const nf = (v, d = 2) => (v == null || !isFinite(v) ? '–' : (+v).toLocaleString('hu-HU', { minimumFractionDigits: d, maximumFractionDigits: d }));
+const numIn = (s) => { if (s == null) return undefined; const t = String(s).replace(/\s/g, '').replace(',', '.'); if (t === '') return undefined; const n = parseFloat(t); return isFinite(n) ? n : NaN; };
+const inVal = (v) => (v == null ? '' : String(v).replace('.', ','));
+let tt; const toast = (m) => { const t = $('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 3000); };
+const TERMS = [['r1', '1 év'], ['r2', '2 év'], ['r3', '3 év'], ['r4', '3+ év']];
+const PRICE = ['r1', 'r2', 'r3', 'r4', 'sc'];       // a pénznemhez kötött mezők
+const FIELDS = ['cur', ...PRICE, 'cf', 'tw'];
+const STL = { rented: ['Bérelt', 're'], available: ['Kiadható', 'av'], own: ['Saját használat', ''], common: ['Közös terület', ''], '': ['Jelöletlen', ''] };
+const MEAS = { belso: 'Belső falsík', falkozep: 'Falközép', kulso: 'Külső falsík' };
+const DEF_ASIS = 'Minden ár a terület jelenlegi (as-is) állapotára vonatkozik. Bármilyen átalakítás, kiépítés vagy egyéb módosítás az árat módosítja. A listaár tájékoztató jellegű, nem ajánlat és nem szerződés; a végleges feltételeket a bérleti szerződés rögzíti. Az árak nettó árak, az ÁFA-t nem tartalmazzák.';
+// B és D épületben a helyiségek nincsenek kategorizálva: a közös jellegű helyiségeket név szerint szűrjük, ha az adminban nincs állapotuk
+const COMMONRX = /^(wc|mosdó|zu?h?anyzó|lépcsőház|liftakna|lift ?gh|liftgépház|közl|közekedő|folyosó|átjáró|előtér|előcsarnok|takarító|tetőkijárat|antenna|mérő|gépészet|eü\. fülke|öltöző|hasz\. kív|kompressor|gáz tároló)/i;
+
+let DB = null, RULES = {}, OV = {}, SET = {}, dbReady = false;
+const S = { tab: 'list', b: 'A', k: '*', w: '*', show: 'ker', term: 'r4', cur: '', edit: null };
+try { const j = JSON.parse(localStorage.getItem('acrListaar.nezet') || 'null'); if (j) Object.assign(S, j, { edit: null, tab: j.tab || 'list' }); } catch (e) { }
+const saveView = () => { try { localStorage.setItem('acrListaar.nezet', JSON.stringify({ tab: S.tab, b: S.b, k: S.k, w: S.w, show: S.show, term: S.term, cur: S.cur })); } catch (e) { } };
+if (!PACKS[S.b]) S.b = 'A';
+
+// ---------- jogosultság ----------
+const editors = () => (SET.editors || []).map((x) => String(x).trim().toLowerCase()).filter(Boolean);
+const canEdit = () => dbReady && (!editors().length || editors().includes(String(window.LPDB.email()).toLowerCase()));
+
+// ---------- terület (ugyanaz a logika, mint az adminban) ----------
+for (const [bid, p] of Object.entries(PACKS)) for (const r of p.rooms) r.b = bid;
+const isTer = (r) => r.cat === 'Terasz / külső';
+function ar0(r) { if (!r.par) return r.a; if (r.rem) { const P = PACKS[r.b].parents[r.par]; let s = 0; for (const x of PACKS[r.b].rooms) if (x.par === r.par && !x.rem) s += (OV[x.id] && +OV[x.id].a) || 0; return Math.max(0, +((P ? P.a : 0) - s).toFixed(2)); } const o = OV[r.id]; return o && o.a ? +o.a : 0; }
+const WSUM = {};
+function wsum(b, k, w) { const key = b + '|' + k + '|' + w; if (!(key in WSUM)) WSUM[key] = PACKS[b].rooms.reduce((s, r) => s + (r.k === k && r.w === w && !isTer(r) ? ar0(r) : 0), 0); return WSUM[key]; }
+const meas = () => (SET.meas in MEAS ? SET.meas : 'belso');
+function mf(r) { if (isTer(r) || meas() === 'belso') return 1; const M = PACKS[r.b].wmeas[r.k + '|' + r.w], s = M ? wsum(r.b, r.k, r.w) : 0; return M && s > 0 && M[meas()] ? M[meas()] / s : 1; }
+const area = (r) => ar0(r) * mf(r);
+const stOf = (r) => { const o = OV[r.id]; return (o && o.s) || (PACKS[r.b].def || {})[r.cat] || ''; };
+const nameOf = (r) => (OV[r.id] && OV[r.id].n) || r.name;
+const isUnit = (r) => { const s = stOf(r); if (s === 'common' || s === 'own') return false; if (s) return true; if (r.cat === 'Bérelhető' || isTer(r)) return true; if (r.cat) return false; return !COMMONRX.test(nameOf(r).trim()); };
+const lvlName = (b, k) => (PACKS[b].lvl.find((l) => l[0] === k) || [k, k])[1];
+const wingName = (b, w) => (PACKS[b].wings.find((x) => x[0] === w) || [w, w])[1];
+
+// ---------- árszabályok: épület > szint > szárny > egység ----------
+const keyB = (b) => 'r:' + b, keyF = (b, k) => 'r:' + b + '|' + k, keyW = (b, k, w) => 'r:' + b + '|' + k + '|' + w, keyU = (id) => 'u:' + id;
+const LEVEL = { b: 'épület', f: 'szint', w: 'szárny', u: 'egyedi' };
+function merge(chain) {
+  const acc = {}, src = {};
+  for (const [lv, rule] of chain) {
+    if (!rule) continue;
+    if (rule.cur && acc.cur && rule.cur !== acc.cur) for (const f of PRICE) { delete acc[f]; delete src[f]; }   // más pénznem: a fölötte lévő árak nem öröklődnek
+    for (const f of FIELDS) if (rule[f] != null && rule[f] !== '') { acc[f] = rule[f]; src[f] = lv; }
+  }
+  return { v: acc, src };
+}
+const chainFor = (b, k, w, id) => [['b', RULES[keyB(b)]], ['f', k && k !== '*' ? RULES[keyF(b, k)] : null], ['w', k && k !== '*' && w && w !== '*' ? RULES[keyW(b, k, w)] : null], ['u', id ? RULES[keyU(id)] : null]];
+function priceOf(r) {
+  const m = merge(chainFor(r.b, r.k, r.w, r.id)), v = m.v, u = RULES[keyU(r.id)];
+  const net = area(r), tw = isTer(r) ? (v.tw != null ? +v.tw : 100) : 100, base = net * tw / 100, cf = v.cf != null ? +v.cf : 0, billed = base * (1 + cf / 100);
+  return { v, src: m.src, spec: !!u, unote: u && u.note, net, tw, base, cf, billed };
+}
+const conv = (x, from) => { const to = S.cur || from, rate = +SET.rate; if (x == null || !from || to === from) return { x, cur: from }; if (!rate) return { x: null, cur: to }; return { x: from === 'EUR' ? x * rate : x / rate, cur: to }; };
+
+// ---------- adatbázis ----------
+window.LPDB.open().then((db) => {
+  DB = db;
+  if (db.signOut) { $('out').hidden = false; $('out').onclick = () => db.signOut(); }
+  db.collection('pricelist').onSnapshot((snap) => { RULES = {}; SET = {}; snap.docs.forEach((d) => { if (d.id === '_beallitas') SET = d.data() || {}; else RULES[d.id] = d.data(); }); dbReady = true; for (const k in WSUM) delete WSUM[k]; renderAll(); }, (e) => { $('who').textContent = 'adatbázis hiba: ' + (e && e.message || e); });
+  db.collection('rooms').onSnapshot((snap) => { OV = {}; snap.docs.forEach((d) => { OV[d.id] = d.data(); }); for (const k in WSUM) delete WSUM[k]; renderAll(); }, () => { });
+});
+async function put(id, data) {
+  if (!canEdit()) { toast('Nincs jogosultságod az árak módosítására.'); return false; }
+  try { if (data) await DB.doc('pricelist/' + id).set(Object.assign({}, data, { by: window.LPDB.email(), at: new Date().toISOString() })); else await DB.doc('pricelist/' + id).delete(); toast('Mentve'); return true; }
+  catch (e) { toast('Hiba a mentésnél: ' + (e && e.message || e)); return false; }
+}
+
+// ---------- szűrők ----------
+function lvlsOf(b) { const ks = new Set(PACKS[b].rooms.map((r) => r.k)); return PACKS[b].lvl.filter((l) => ks.has(l[0])); }
+function wingsOf(b, k) { const ws = new Set(PACKS[b].rooms.filter((r) => k === '*' || r.k === k).map((r) => r.w)); return PACKS[b].wings.filter((w) => ws.has(w[0])); }
+function renderFilters() {
+  $('fB').innerHTML = Object.entries(PACKS).map(([id, p]) => `<option value="${id}"${id === S.b ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+  if (S.k !== '*' && !lvlsOf(S.b).some((l) => l[0] === S.k)) S.k = '*';
+  $('fK').innerHTML = `<option value="*">Minden szint</option>` + lvlsOf(S.b).map((l) => `<option value="${esc(l[0])}"${l[0] === S.k ? ' selected' : ''}>${esc(l[1])}</option>`).join('');
+  if (S.k === '*' || (S.w !== '*' && !wingsOf(S.b, S.k).some((w) => w[0] === S.w))) S.w = '*';
+  $('fW').innerHTML = `<option value="*">${S.k === '*' ? 'Előbb válassz szintet' : 'Minden szárny'}</option>` + (S.k === '*' ? '' : wingsOf(S.b, S.k).map((w) => `<option value="${esc(w[0])}"${w[0] === S.w ? ' selected' : ''}>${esc(w[1])}</option>`).join(''));
+  $('fW').disabled = S.k === '*';
+  $('fS').value = S.show; $('fT').value = S.term; $('fC').value = S.cur;
+}
+const scopeLabel = () => [PACKS[S.b].name, S.k !== '*' ? lvlName(S.b, S.k) : null, S.w !== '*' ? wingName(S.b, S.w) : null].filter(Boolean).join(' · ');
+const scopeKey = () => (S.w !== '*' ? keyW(S.b, S.k, S.w) : S.k !== '*' ? keyF(S.b, S.k) : keyB(S.b));
+const scopeLv = () => (S.w !== '*' ? 'w' : S.k !== '*' ? 'f' : 'b');
+
+// ---------- árszerkesztő űrlap (általános és egyedi) ----------
+function formHtml(own, inh, opts) {
+  const ro = !canEdit() ? ' readonly' : '', dis = !canEdit() ? ' disabled' : '';
+  const ph = (f) => { if (inh.v[f] == null) return ''; const unit = f === 'cf' || f === 'tw' ? '%' : (inh.v.cur || ''); return `${nf(+inh.v[f])} ${unit} (${LEVEL[inh.src[f]]})`; };
+  const cur = own.cur || '', icur = inh.v.cur;
+  const num = (f, lab) => `<label class="f">${lab}<input type="text" class="num" inputmode="decimal" data-f="${f}" value="${esc(inVal(own[f]))}" placeholder="${esc(own[f] == null && inh.v[f] != null ? nf(+inh.v[f]) : '')}"${ro}><span class="inh">${own[f] == null && inh.v[f] != null ? 'örökölt: ' + esc(ph(f)) : '&nbsp;'}</span></label>`;
+  return `<div class="grid">
+    <label class="f">Pénznem<select data-f="cur"${dis}><option value="">${icur ? 'örökölt: ' + icur : 'válassz'}</option>${['EUR', 'HUF'].map((c) => `<option${c === cur ? ' selected' : ''}>${c}</option>`).join('')}</select><span class="inh">a bérleti és az üzemeltetési díjé</span></label>
+    ${TERMS.map(([f, lab]) => num(f, `Bérleti díj, ${lab} /m²/hó`)).join('')}
+    ${num('sc', 'Üzemeltetési díj /m²/hó')}
+    ${num('cf', 'Közös terület szorzó, %')}
+    ${opts.terrace ? num('tw', 'Terasz beszámítása, %') : ''}
+  </div>
+  <label class="f" style="margin-top:10px">${opts.unit ? 'Az egyedi feltétel leírása (a listában és a nyomtatásban megjelenik)' : 'Megjegyzés ehhez a részhez'}<textarea data-f="note"${ro} placeholder="${opts.unit ? 'pl. saját bejárat, más állapot, csak egyben adható ki' : ''}">${esc(own.note || '')}</textarea></label>`;
+}
+function readForm(box) {
+  const o = {}; let bad = '';
+  box.querySelectorAll('[data-f]').forEach((el) => { const f = el.dataset.f; if (f === 'cur' || f === 'note') { if (el.value.trim()) o[f] = el.value.trim(); return; } const n = numIn(el.value); if (n === undefined) return; if (isNaN(n) || n < 0) bad = bad || f; else o[f] = n; });
+  if (o.cf != null && o.cf > 50) bad = bad || 'cf';
+  return { o, bad };
+}
+const FLAB = { r1: 'bérleti díj (1 év)', r2: 'bérleti díj (2 év)', r3: 'bérleti díj (3 év)', r4: 'bérleti díj (3+ év)', sc: 'üzemeltetési díj', cf: 'közös terület szorzó (0–50%)', tw: 'terasz beszámítás' };
+function priceWarn(v) {
+  const w = [];
+  if (PRICE.some((f) => v[f] != null) && !v.cur) w.push('nincs pénznem megadva');
+  if (v.cur && TERMS.some(([f]) => v[f] == null)) w.push('nem minden futamidőhöz van ár');
+  const r = TERMS.map(([f]) => v[f]).filter((x) => x != null);
+  if (r.some((x, i) => i && x > r[i - 1])) w.push('a hosszabb futamidő ára magasabb, mint a rövidebbé');
+  return w;
+}
+
+function renderGen() {
+  const key = scopeKey(), own = RULES[key] || {}, lv = scopeLv();
+  const parent = lv === 'b' ? { v: {}, src: {} } : merge(chainFor(S.b, lv === 'w' ? S.k : '*', '*', null));
+  const eff = merge(chainFor(S.b, S.k, S.w, null)), warn = priceWarn(eff.v);
+  const hasTer = PACKS[S.b].rooms.some((r) => isTer(r) && (S.k === '*' || r.k === S.k) && (S.w === '*' || r.w === S.w));
+  $('gen').innerHTML = `<h2>Általános feltételek: ${esc(scopeLabel())}</h2>
+    <p class="hint" style="margin:-4px 0 10px">${lv === 'b' ? 'Az épület alapára. A szint és a szárny ettől eltérhet; amit ott üresen hagysz, az innen öröklődik.' : 'Csak az eltérést írd be. Az üres mező a fölötte lévő szintről öröklődik (szürkén látszik).'} Az ár a nettó + közös területre (számlázott m²) jár, mint a kalkulátorban.</p>
+    <div id="genf">${formHtml(own, parent, { terrace: hasTer })}</div>
+    ${warn.length ? `<p class="bad" style="margin:8px 0 0">Figyelem: ${esc(warn.join('; '))}.</p>` : ''}
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap" class="noprint">
+      <button class="btn pri" id="genSave"${canEdit() ? '' : ' disabled'}>Mentés</button>
+      ${RULES[key] ? `<button class="btn dan" id="genDel"${canEdit() ? '' : ' disabled'}>${lv === 'b' ? 'Épület árainak törlése' : 'Eltérés törlése (öröklés)'}</button><span class="hint">utoljára: ${esc(own.by || '?')}, ${esc((own.at || '').slice(0, 16).replace('T', ' '))}</span>` : ''}
+    </div>`;
+  const box = $('genf');
+  $('genSave').onclick = async () => { const { o, bad } = readForm(box); if (bad) { toast('Hibás érték: ' + FLAB[bad]); return; } if (!Object.keys(o).length) { if (RULES[key]) await put(key, null); return; } await put(key, Object.assign({ lv, b: S.b, k: S.k === '*' ? null : S.k, w: S.w === '*' ? null : S.w }, o)); };
+  if ($('genDel')) $('genDel').onclick = async () => { if (confirm('Törlöd ennek a résznek a beállított árait? Utána a fölötte lévő szint árai érvényesek.')) await put(key, null); };
+}
+
+// ---------- egységtábla ----------
+function unitsInScope() {
+  return PACKS[S.b].rooms.filter((r) => (S.k === '*' || r.k === S.k) && (S.w === '*' || r.w === S.w) && (S.show === 'all' || (S.show === 'av' ? stOf(r) === 'available' && isUnit(r) : isUnit(r))))
+    .filter((r) => !(r.par && !r.rem && !(OV[r.id] && +OV[r.id].a)) || S.show === 'all');
+}
+function money(x, cur) { const c = conv(x, cur); return c.x == null ? (x == null ? '–' : '<span class="dim" title="Nincs árfolyam a Beállításokban">árfolyam?</span>') : nf(c.x, c.cur === 'HUF' ? 0 : 2); }
+function renderTable() {
+  const rows = unitsInScope(), T = S.term, tl = TERMS.find((t) => t[0] === T)[1];
+  const curs = new Set(); let sNet = 0, sBil = 0, sRent = 0, sSc = 0, miss = 0, missSc = 0;
+  const body = rows.map((r) => {
+    const p = priceOf(r), v = p.v, st = STL[stOf(r)] || STL[''], c = v.cur;
+    const rent = v[T] != null ? v[T] * p.billed : null, sc = v.sc != null ? v.sc * p.billed : null;
+    sNet += p.net; sBil += p.billed; if (c) curs.add(conv(1, c).cur);
+    const cr = conv(rent, c), cs = conv(sc, c); if (cr.x != null) sRent += cr.x; else miss++; if (cs.x != null) sSc += cs.x; else if (cr.x != null) missSc++;
+    const editing = S.edit === r.id;
+    return `<tr class="${p.spec ? 'spec' : ''}" data-id="${esc(r.id)}">
+      <td><b>${esc(r.code || '–')}</b> ${esc(nameOf(r))}${isTer(r) ? ` <span class="tag">terasz, ${nf(p.tw, 0)}%-on</span>` : ''}${p.spec ? `<br><span class="tag spec">Egyedi feltétel: az általános feltételek nem vonatkoznak rá</span>${p.unote ? `<br><span class="hint">${esc(p.unote)}</span>` : ''}` : ''}</td>
+      <td>${esc(lvlName(r.b, r.k))}<br><span class="dim">${esc(wingName(r.b, r.w))}</span></td>
+      <td><span class="tag ${st[1]}">${st[0]}</span></td>
+      <td class="n">${nf(p.net)}</td><td class="n">${nf(p.cf, 1)}%</td><td class="n">${nf(p.billed)}</td>
+      ${TERMS.map(([f]) => `<td class="n${f === T ? '' : ' dim'}">${v[f] != null ? money(+v[f], c) : '–'}</td>`).join('')}
+      <td class="n">${v.sc != null ? money(+v.sc, c) : '–'}</td>
+      <td class="n">${money(rent, c)}</td><td class="n">${money(rent != null && sc != null ? rent + sc : null, c)}</td>
+      <td>${c ? esc(conv(1, c).cur) : '<span class="bad">nincs ár</span>'}</td>
+      <td class="noprint" style="white-space:nowrap"><button class="btn" data-ued="${esc(r.id)}">${editing ? 'Bezár' : p.spec ? 'Egyedi ár' : 'Egyedi ár…'}</button> <button class="btn" data-offer="${esc(r.id)}" title="Megnyitás a kalkulátorban">Ajánlat</button></td>
+    </tr>${editing ? `<tr class="ed"><td colspan="16"><div id="uedf">${formHtml(RULES[keyU(r.id)] || {}, merge(chainFor(r.b, r.k, r.w, null)), { unit: true, terrace: isTer(r) })}</div>
+      <p class="hint">Az egyedi ár ennél az egységnél felülírja a szárny, a szint és az épület árát; amit üresen hagysz, az onnan öröklődik. Az egység a listán „Egyedi feltétel: az általános feltételek nem vonatkoznak rá” jelölést kap.</p>
+      <div style="display:flex;gap:8px"><button class="btn pri" data-usave="${esc(r.id)}"${canEdit() ? '' : ' disabled'}>Egyedi ár mentése</button>${RULES[keyU(r.id)] ? `<button class="btn dan" data-udel="${esc(r.id)}"${canEdit() ? '' : ' disabled'}>Egyedi ár törlése</button>` : ''}</div></td></tr>` : ''}`;
+  }).join('');
+  const one = curs.size === 1 ? [...curs][0] : null, dec = one === 'HUF' ? 0 : 2;
+  $('tbl').innerHTML = rows.length ? `<table><thead><tr><th>Egység</th><th>Szint / szárny</th><th>Állapot</th><th class="n">Nettó m²</th><th class="n">Közös</th><th class="n">Számlázott m²</th>${TERMS.map(([f, l]) => `<th class="n">${l}<br>/m²/hó</th>`).join('')}<th class="n">Üzem. díj<br>/m²/hó</th><th class="n">Havi bérleti díj<br>(${tl})</th><th class="n">Havi összesen<br>(${tl})</th><th>Pénz&shy;nem</th><th class="noprint"></th></tr></thead>
+    <tbody>${body}<tr class="tot"><td colspan="3">Összesen, ${rows.length} egység</td><td class="n">${nf(sNet)}</td><td></td><td class="n">${nf(sBil)}</td><td colspan="5"></td><td class="n">${one ? nf(sRent, dec) : '–'}</td><td class="n">${one && !missSc ? nf(sRent + sSc, dec) : '–'}</td><td>${one ? esc(one) : curs.size > 1 ? 'vegyes' : ''}</td><td class="noprint"></td></tr></tbody></table>
+    ${curs.size > 1 ? '<p class="hint">Az összesen sor csak egy pénznemben számolható: válaszd ki a kijelzés pénznemét, és add meg az árfolyamot a Beállításokban.</p>' : ''}
+    ${miss && one ? `<p class="hint">${miss} egységnek nincs ára ennél a futamidőnél, ezek nincsenek az összegben.</p>` : ''}
+    <p class="hint">Terület: helyiséglista szerint, ${esc(MEAS[meas()])} mérték${meas() !== 'belso' ? ' (a szárny falmértéke arányában felszorozva)' : ''}. Számlázott m² = nettó (terasz a beszámított %-on) × (1 + közös terület %).</p>`
+    : '<p class="hint">Ebben a részben nincs a szűrőnek megfelelő helyiség.</p>';
+  const box = $('uedf'), id = S.edit;
+  if (box) {
+    const sv = document.querySelector('[data-usave]'), dl = document.querySelector('[data-udel]');
+    sv.onclick = async () => { const { o, bad } = readForm(box); if (bad) { toast('Hibás érték: ' + FLAB[bad]); return; } const r = PACKS[S.b].rooms.find((x) => x.id === id); if (await put(keyU(id), Object.assign({ lv: 'u', b: r.b, k: r.k, w: r.w, rid: id, code: r.code }, o))) { S.edit = null; } };
+    if (dl) dl.onclick = async () => { if (confirm('Törlöd az egyedi árat? Az egység visszakerül az általános feltételek alá.')) { if (await put(keyU(id), null)) S.edit = null; } };
+  }
+}
+function renderAsis() {
+  const t = SET.asis || DEF_ASIS;
+  $('asis').innerHTML = `<b>Listaár, as-is állapotra.</b> ${esc(t)}${SET.valid ? ` <span class="dim">Érvényes: ${esc(SET.valid)}-tól.</span>` : ''}${SET.rate ? ` <span class="dim">Átváltás: ${nf(+SET.rate)} Ft/EUR${SET.rateDate ? ' (' + esc(SET.rateDate) + ')' : ''}.</span>` : ''}`;
+  $('pTitle').textContent = 'ACR listaár: ' + scopeLabel();
+  $('pMeta').textContent = `Horizont Park, 1113 Budapest, Daróczi út 1–3. Nyomtatva: ${new Date().toLocaleDateString('hu-HU')} Futamidő a havi összegeknél: ${TERMS.find((t) => t[0] === S.term)[1]}.`;
+}
+function csv() {
+  const rows = unitsInScope(), q = (s) => `"${String(s == null ? '' : s).replace(/"/g, '""')}"`, n = (x) => (x == null ? '' : String(+x.toFixed(4)).replace('.', ','));
+  const head = ['Épület', 'Szint', 'Szárny', 'Kód', 'Név', 'Állapot', 'Nettó m²', 'Terasz beszámítás %', 'Közös terület %', 'Számlázott m²', 'Pénznem', ...TERMS.map(([, l]) => `Bérleti díj ${l} /m²/hó`), 'Üzemeltetési díj /m²/hó', 'Egyedi feltétel', 'Megjegyzés'];
+  const lines = [head.map(q).join(';')].concat(rows.map((r) => { const p = priceOf(r), v = p.v; return [PACKS[r.b].name, lvlName(r.b, r.k), wingName(r.b, r.w), r.code, nameOf(r), (STL[stOf(r)] || STL[''])[0], n(p.net), isTer(r) ? n(p.tw) : '', n(p.cf), n(p.billed), v.cur || '', ...TERMS.map(([f]) => n(v[f])), n(v.sc), p.spec ? 'igen' : '', p.unote || ''].map((x, i) => (i >= 6 && i <= 9) || (i >= 11 && i <= 15) ? x : q(x)).join(';'); }));
+  lines.push('', q('Listaár, as-is állapotra. ' + (SET.asis || DEF_ASIS)));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })); a.download = `ACR_listaar_${scopeLabel().replace(/[^\p{L}\p{N}]+/gu, '_')}_${new Date().toISOString().slice(0, 10)}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+}
+
+// ---------- beállítások ----------
+function renderSet() {
+  const ro = !canEdit() ? ' readonly' : '', dis = !canEdit() ? ' disabled' : '';
+  $('setc').innerHTML = `<h2>Beállítások</h2>
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+      <label class="f">Mérési alap (a helyiségterület)<select id="sMeas"${dis}>${Object.entries(MEAS).map(([k, l]) => `<option value="${k}"${k === meas() ? ' selected' : ''}>${l}</option>`).join('')}</select><span class="inh">a szárny falmértékével arányosan, mint az adminban</span></label>
+      <label class="f">Árfolyam, Ft/EUR<input type="text" class="num" id="sRate" value="${esc(inVal(SET.rate))}"${ro}><span class="inh">a kijelzéshez és a CSV-hez</span></label>
+      <label class="f">Árfolyam dátuma<input type="text" id="sRateD" value="${esc(SET.rateDate || '')}" placeholder="ÉÉÉÉ-HH-NN"${ro}></label>
+      <label class="f">A listaár érvényes ettől<input type="text" id="sValid" value="${esc(SET.valid || '')}" placeholder="ÉÉÉÉ-HH-NN"${ro}></label>
+    </div>
+    <label class="f" style="margin-top:12px">As-is feltétel szövege (minden lista és nyomtatás alján)<textarea id="sAsis" rows="4"${ro}>${esc(SET.asis || DEF_ASIS)}</textarea></label>
+    <label class="f" style="margin-top:12px">Az árakat módosíthatja (e-mail címek, soronként egy)<textarea id="sEd" rows="3"${ro}>${esc((SET.editors || []).join('\n'))}</textarea>
+      <span class="inh">${editors().length ? 'Csak ők módosíthatnak; mindenki más, aki belép, csak megnézheti a listát és a kalkulátort használhatja.' : 'Üres: bárki, aki belép, módosíthatja az árakat. Írd be a tulajdonos e-mail címét.'} A korlátozás az oldalon érvényes; adatbázis szinten a Supabase jogosultság (RLS) dönt.</span></label>
+    <div style="margin-top:12px;display:flex;gap:8px"><button class="btn pri" id="sSave"${dis}>Mentés</button><span class="hint">Belépve: ${esc(window.LPDB.email())}</span></div>`;
+  $('sSave').onclick = async () => {
+    const rate = numIn($('sRate').value); if (rate !== undefined && (isNaN(rate) || rate <= 0)) { toast('Hibás árfolyam'); return; }
+    const ed = $('sEd').value.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean), me = String(window.LPDB.email()).toLowerCase();
+    if (ed.length && !ed.map((x) => x.toLowerCase()).includes(me) && !confirm('A saját címed nincs a listán, így mentés után te sem módosíthatsz. Folytatod?')) return;
+    const o = { meas: $('sMeas').value, rate, rateDate: $('sRateD').value.trim() || undefined, valid: $('sValid').value.trim() || undefined, asis: $('sAsis').value.trim() && $('sAsis').value.trim() !== DEF_ASIS ? $('sAsis').value.trim() : undefined, editors: ed };
+    await put('_beallitas', o);
+  };
+}
+
+// ---------- kalkulátor (ACR_ajanlat_kalkulator_v4 képletei) ----------
+const CDEF = () => [
+  { name: 'A – kiegyensúlyozott', area: 878.31, cf: 9.9, R: 12.6, T: 96, free: 6.5, fit: 250, oth: 0, feeType: 'Nincs', feeM: 0, feeP: 0, base: 'Headline', idx: 2.5, disc: 7, sc: 4.5, scMode: 'Fizetendő', cur: 'EUR' },
+  { name: 'B – fit-out vezetett', area: 878.31, cf: 9.9, R: 12.6, T: 96, free: 5, fit: 300, oth: 0, feeType: 'Nincs', feeM: 0, feeP: 0, base: 'Headline', idx: 2.5, disc: 7, sc: 4.5, scMode: 'Fizetendő', cur: 'EUR' },
+  { name: 'C – díjmentes vezetett', area: 878.31, cf: 9.9, R: 12, T: 96, free: 8, fit: 200, oth: 0, feeType: 'Nincs', feeM: 0, feeP: 0, base: 'Headline', idx: 2.5, disc: 7, sc: 4.5, scMode: 'Fizetendő', cur: 'EUR' }];
+let CV = CDEF(), CSRC = '';
+try { const j = JSON.parse(localStorage.getItem('acrListaar.kalk') || 'null'); if (j && j.v && j.v.length === 3) { CV = j.v.map((x, i) => Object.assign(CDEF()[i], x)); CSRC = j.src || ''; } } catch (e) { }
+const saveCalc = () => { try { localStorage.setItem('acrListaar.kalk', JSON.stringify({ v: CV, src: CSRC })); } catch (e) { } };
+function calc(x) {
+  const T = Math.round(x.T), idx = x.idx / 100, disc = x.disc / 100, cf = x.cf / 100;
+  let paid = 0, head = 0, pv = 0, dfs = 0, opx = 0, firstH = null, firstS = null;
+  for (let m = 1; m <= T; m++) {
+    const y = Math.floor((m - 1) / 12), g = Math.pow(1 + idx, y), h = x.R * g, fr = Math.max(0, Math.min(1, m - x.free)), df = 1 / Math.pow(1 + disc, (m - 1) / 12);
+    paid += h * fr; head += h; pv += h * fr * df; dfs += df;
+    const s = x.sc * g * (x.scMode === 'Díjmentes' ? fr : 1); opx += s;   // v4-hez képest: díjmentes módban a fél díjmentes hónapban az üzemeltetési díj is fél
+    if (m === Math.floor(x.free) + 1) { firstH = h; firstS = x.sc * g; }
+  }
+  const billed = x.area * (1 + cf), fo = (x.fit + x.oth) * x.area / billed;
+  const base = x.base === 'Headline' ? head : x.base === 'Díjmentes levonva' ? paid : paid - fo;
+  const fee = x.feeType === 'Hónap' ? x.feeM * base * x.R / head : x.feeType === '%' ? x.feeP / 100 * base : 0;
+  const r = { paid, head, fo, base, fee, billed, opx,
+    ner0: (paid - fo) / T, ner: (paid - fo - fee) / T, nerd: (pv - fo - fee) / dfs,
+    inc: 1 - ((paid - fo - fee) / T) / (head / T), incM: (head - paid + fo + fee) / (head / T), feeMo: fee / (head / T),
+    income: (paid - fo - fee) * billed, feeTot: fee * billed, foTot: fo * billed,
+    mRent: firstH != null ? firstH * billed : null, mSc: firstS != null ? firstS * billed : null, opxTot: opx * billed, tenantTot: (paid + opx) * billed };
+  r.mTot = r.mRent != null ? r.mRent + r.mSc : null;
+  return r;
+}
+function check(x, r) {
+  if (!(x.T >= 1 && x.T <= 120)) return 'Futamidő 1–120 hó';
+  if (!(x.R > 0)) return 'Ajánlati díj legyen > 0';
+  if (!(x.area > 0)) return 'Terület legyen > 0';
+  if (!(x.cf >= 0 && x.cf <= 50)) return 'Közös terület 0–50%';
+  if ([x.free, x.fit, x.oth, x.feeM, x.feeP, x.sc].some((v) => !(v >= 0))) return 'Negatív vagy hiányzó bemenet';
+  if (x.free >= x.T) return 'Díjmentes idő ≥ futamidő';
+  if (x.T !== Math.round(x.T) || x.free * 2 !== Math.round(x.free * 2)) return 'Futamidő egész hónap, díjmentes idő egész vagy fél hónap';
+  if (!(x.idx >= -5 && x.idx <= 15)) return 'Indexálás −5% és 15% között';
+  if (!(x.disc >= 0 && x.disc <= 30)) return 'Diszkontráta 0–30%';
+  if (x.feeType === 'Hónap' && x.feeM > 12) return 'Ügynöki díj legfeljebb 12 hónap';
+  if (x.feeType === '%' && x.feeP > 30) return 'Ügynöki díj legfeljebb 30%';
+  if (x.feeType !== 'Hónap' && x.feeM) return 'Hónap mező nem él, nullázd';
+  if (x.feeType !== '%' && x.feeP) return '% mező nem él, nullázd';
+  if (r.ner < 0) return 'Negatív nettó effektív díj';
+  return 'OK';
+}
+const tierOf = (T) => (T <= 12 ? 'r1' : T <= 24 ? 'r2' : T <= 36 ? 'r3' : 'r4');
+function renderCalc() {
+  const units = Object.values(PACKS).flatMap((p) => p.rooms.filter(isUnit));
+  const sel = $('cU').value;
+  $('cU').innerHTML = '<option value="">válassz egységet</option>' + Object.entries(PACKS).map(([bid, p]) => `<optgroup label="${esc(p.name)}">${units.filter((r) => r.b === bid).map((r) => { const v = priceOf(r).v; return `<option value="${esc(r.id)}">${esc(r.code)} ${esc(nameOf(r))} · ${nf(area(r))} m²${v.cur ? '' : ' · nincs ár'}</option>`; }).join('')}</optgroup>`).join('');
+  $('cU').value = sel; $('cSrc').textContent = CSRC;
+  const R = CV.map(calc), cur = CV[0].cur || 'EUR';
+  const inp = (f, kind, unit) => `<tr><td class="lab">${unit}</td>${CV.map((x, i) => `<td>${kind === 'sel' ? `<select data-cv="${i}" data-cf="${f}">${(f === 'feeType' ? ['Nincs', 'Hónap', '%'] : f === 'base' ? ['Headline', 'Díjmentes levonva', 'Nettó effektív'] : f === 'cur' ? ['EUR', 'HUF'] : ['Fizetendő', 'Díjmentes']).map((o) => `<option${o === x[f] ? ' selected' : ''}>${o}</option>`).join('')}</select>` : `<input type="text" data-cv="${i}" data-cf="${f}" value="${esc(kind === 'txt' ? x[f] : inVal(x[f]))}"${kind === 'txt' ? '' : ' inputmode="decimal" style="text-align:right"'}${(f === 'feeM' && x.feeType !== 'Hónap') || (f === 'feeP' && x.feeType !== '%') ? ' readonly' : ''}>`}</td>`).join('')}</tr>`;
+  const best = (vals, hi) => { const ok = vals.filter((v) => isFinite(v)); const b = hi ? Math.max(...ok) : Math.min(...ok); return vals.map((v) => ok.length > 1 && Math.abs(v - b) < 1e-9 && new Set(ok.map((z) => z.toFixed(6))).size > 1); };
+  const out = (lab, f, d, opt = {}) => { const vals = R.map((r) => r[f]), bb = opt.best ? best(vals, opt.best === 'hi') : [];
+    return `<tr><td class="lab">${lab}</td>${vals.map((v, i) => `<td class="res${bb[i] ? ' best' : ''}">${v == null ? '–' : opt.pct ? nf(v * 100, 1) + '%' : nf(v, d)}</td>`).join('')}</tr>`; };
+  const lp = CV.map((x) => { if (!x.lp) return '–'; const v = x.lp[tierOf(x.T)]; if (v == null) return 'nincs listaár ehhez a futamidőhöz'; const d = (x.R / v - 1) * 100; return `${nf(v)} ${x.cur} (${TERMS.find((t) => t[0] === tierOf(x.T))[1]})${Math.abs(d) > 0.005 ? `, az ajánlat <span class="${d < 0 ? 'bad' : 'ok'}">${d > 0 ? '+' : ''}${nf(d, 1)}%</span>` : ', az ajánlat a listaáron'}`; });
+  const ch = CV.map((x, i) => check(x, R[i]));
+  $('calc').innerHTML = `<thead><tr><th>Bemenet / eredmény</th>${CV.map((x, i) => `<th>${'ABC'[i]}</th>`).join('')}</tr></thead><tbody>
+    <tr class="sec"><td colspan="4">BEMENETEK</td></tr>
+    ${inp('name', 'txt', 'Változat neve')}
+    ${inp('cur', 'sel', 'Pénznem')}
+    ${inp('area', 'num', 'Nettó bérelt terület, m² (terasz a beszámított részével)')}
+    ${inp('cf', 'num', 'Közös terület aránya, %')}
+    ${inp('R', 'num', `Ajánlati (headline) bérleti díj, ${cur}/m²/hó`)}
+    <tr><td class="lab">Listaár ennél a futamidőnél</td>${lp.map((t) => `<td class="hint" style="white-space:normal">${t}</td>`).join('')}</tr>
+    ${inp('T', 'num', 'Bérleti idő, hónap (1–120)')}
+    ${inp('free', 'num', 'Díjmentes időszak, hónap (a futamidő elején; egész vagy fél)')}
+    ${inp('fit', 'num', `Fit-out hozzájárulás, ${cur}/m² (nettó területre)`)}
+    ${inp('oth', 'num', `Egyéb egyszeri költség, ${cur}/m²`)}
+    ${inp('feeType', 'sel', 'Ügynöki díj típusa')}
+    ${inp('feeM', 'num', 'Ügynöki díj, hónapok száma')}
+    ${inp('feeP', 'num', 'Ügynöki díj, % (a futamidő teljes díjából)')}
+    ${inp('base', 'sel', 'Ügynöki díj alapja')}
+    ${inp('idx', 'num', 'Éves indexálás, %')}
+    ${inp('disc', 'num', 'Éves diszkontráta, %')}
+    ${inp('sc', 'num', `Üzemeltetési díj, ${cur}/m²/hó`)}
+    ${inp('scMode', 'sel', 'Üzemeltetési díj a díjmentes időben')}
+    <tr class="sec"><td colspan="4">EREDMÉNYEK (${cur}, a számlázott m²-re: nettó + közös)</td></tr>
+    <tr><td class="lab">Ellenőrzés</td>${ch.map((c) => `<td class="${c === 'OK' ? 'ok' : 'bad'}" style="white-space:normal">${esc(c)}</td>`).join('')}</tr>
+    ${out('Számlázott terület, m²', 'billed', 2)}
+    ${out('Nettó effektív díj, ügynöki díj nélkül, /m²/hó (ahogy a bérlő látja)', 'ner0', 2, { best: 'hi' })}
+    ${out('Nettó effektív díj, ügynöki díjjal, /m²/hó', 'ner', 2, { best: 'hi' })}
+    ${out('Nettó effektív díj, diszkontált, ügynöki díjjal, /m²/hó (döntéshez)', 'nerd', 2, { best: 'hi' })}
+    ${out('Engedmény + költség a headline díjhoz képest', 'inc', 1, { pct: true, best: 'lo' })}
+    ${out('Összes engedmény és költség, havi díjban', 'incM', 1, { best: 'lo' })}
+    ${out('Ebből ügynöki díj, havi díjban', 'feeMo', 1)}
+    ${out('Bérbeadó nettó bevétele a futamidőre', 'income', 0, { best: 'hi' })}
+    ${out('Ügynöki díj összesen', 'feeTot', 0)}
+    ${out('Fit-out és egyéb összesen', 'foTot', 0)}
+    ${out('Havi bérleti díj a díjmentes idő után', 'mRent', 0)}
+    ${out('Havi üzemeltetési díj a díjmentes idő után', 'mSc', 0)}
+    ${out('Bérlő havi költsége (díj + üzem.)', 'mTot', 0)}
+    ${out('Üzemeltetési díj összesen a futamidőre', 'opxTot', 0)}
+    ${out('Bérlő teljes költsége a futamidőre', 'tenantTot', 0)}
+  </tbody>`;
+}
+function loadUnit(id, which) {
+  const r = Object.values(PACKS).flatMap((p) => p.rooms).find((x) => x.id === id); if (!r) return;
+  const p = priceOf(r), v = p.v, lp = {}; TERMS.forEach(([f]) => { if (v[f] != null) lp[f] = +v[f]; });
+  const idxs = which === 'all' ? [0, 1, 2] : [+which];
+  for (const i of idxs) { const x = CV[i]; x.area = +p.base.toFixed(2); x.cf = p.cf; x.lp = lp; if (v.cur) x.cur = v.cur; const t = lp[tierOf(x.T)]; if (t != null) x.R = t; if (v.sc != null) x.sc = +v.sc; }
+  CSRC = `Betöltve: ${PACKS[r.b].name}, ${r.code} ${nameOf(r)}, ${nf(p.net)} m²${isTer(r) ? ` (terasz ${nf(p.tw, 0)}%-on: ${nf(p.base)} m²)` : ''}, közös ${nf(p.cf, 1)}%${p.spec ? ', egyedi feltétel' : ''}${v.cur ? '' : '. Ennek az egységnek nincs listaára, csak a terület töltődött be'}. A listaár a futamidő szerint (1, 2, 3 vagy 3+ év) kerül az ajánlati díjba.`;
+  saveCalc(); renderCalc();
+}
+
+// ---------- rajzolás, események ----------
+function renderAll() {
+  renderFilters();
+  $('who').textContent = dbReady ? `${window.LPDB.email()}${canEdit() ? ' · szerkesztheti az árakat' : ' · csak megtekintés'}${window.LPDB.local ? ' · HELYI PRÓBAMÓD' : ''}` : 'betöltés…';
+  $('ro').hidden = !dbReady || canEdit(); $('ro').innerHTML = '<b>Csak megtekintés.</b> Az árakat a tulajdonos állítja be. A listából és a kalkulátorból bárki készíthet ajánlatot.';
+  for (const t of ['list', 'calc', 'set']) { $('t-' + t).hidden = S.tab !== t; document.querySelector(`[data-tab="${t}"]`).classList.toggle('on', S.tab === t); }
+  if (S.tab === 'list') { renderGen(); renderTable(); renderAsis(); }
+  else if (S.tab === 'calc') renderCalc();
+  else renderSet();
+}
+document.querySelector('.tabs').onclick = (e) => { const b = e.target.closest('[data-tab]'); if (!b) return; S.tab = b.dataset.tab; saveView(); renderAll(); };
+$('fB').onchange = (e) => { S.b = e.target.value; S.k = '*'; S.w = '*'; S.edit = null; saveView(); renderAll(); };
+$('fK').onchange = (e) => { S.k = e.target.value; S.w = '*'; S.edit = null; saveView(); renderAll(); };
+$('fW').onchange = (e) => { S.w = e.target.value; S.edit = null; saveView(); renderAll(); };
+$('fS').onchange = (e) => { S.show = e.target.value; saveView(); renderTable(); };
+$('fT').onchange = (e) => { S.term = e.target.value; saveView(); renderTable(); renderAsis(); };
+$('fC').onchange = (e) => { S.cur = e.target.value; saveView(); renderTable(); };
+$('csv').onclick = csv;
+$('prn').onclick = () => { S.edit = null; renderTable(); renderAsis(); window.print(); };
+$('tbl').onclick = (e) => {
+  const u = e.target.closest('[data-ued]'); if (u) { S.edit = S.edit === u.dataset.ued ? null : u.dataset.ued; renderTable(); return; }
+  const o = e.target.closest('[data-offer]'); if (o) { S.tab = 'calc'; saveView(); renderAll(); $('cU').value = o.dataset.offer; loadUnit(o.dataset.offer, 'all'); }
+};
+$('cLoad').onclick = () => { if (!$('cU').value) { toast('Válassz egységet'); return; } loadUnit($('cU').value, $('cV').value); };
+$('cReset').onclick = () => { if (!confirm('Visszaállítod a kalkulátor alapértékeit?')) return; CV = CDEF(); CSRC = ''; saveCalc(); renderCalc(); };
+$('calc').addEventListener('change', (e) => {
+  const el = e.target.closest('[data-cv]'); if (!el) return; const x = CV[+el.dataset.cv], f = el.dataset.cf;
+  if (f === 'name' || el.tagName === 'SELECT') { x[f] = el.value; if (f === 'feeType') { if (x.feeType !== 'Hónap') x.feeM = 0; if (x.feeType !== '%') x.feeP = 0; } }
+  else { const n = numIn(el.value); x[f] = n === undefined ? NaN : n; }
+  saveCalc(); renderCalc();
+});
+renderAll();
+</script>
+</body></html>
