@@ -202,7 +202,7 @@ select, input[type=text], input[type=search] { background:var(--panel); border:1
 .ltab { width:100%; border-collapse:collapse; font-size:13px; } .ltab th { position:static; } .ltab td, .ltab th { padding:4px 6px; border-top:1px solid var(--soft); text-align:left; vertical-align:top; }
 .ctab input.badin { border-color:#dc2626; background:#fef2f2; } .lease { border:1px solid var(--line); border-radius:7px; } .lease > summary { cursor:pointer; padding:6px 10px; display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; list-style:none; } .lease > summary::-webkit-details-marker { display:none; }
 .lease > summary::before { content:'▸'; color:var(--mute); } .lease[open] > summary::before { content:'▾'; }
-.ptab .idxrow { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; } .ptab .idxrow select { width:auto; min-width:70px; } .ptab .idxrow input { width:auto; flex:1 1 220px; max-width:360px; } .idxrow .dim { color:var(--mute); opacity:.6; } .idxrow :disabled { opacity:.55; }
+.idxrow { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; } .idxrow select { width:auto; min-width:70px; } .idxrow label { display:inline-flex; gap:4px; align-items:center; font-size:13px; } .idxrow input[type=text] { width:auto; flex:1 1 220px; max-width:360px; } .idxrow .dim { color:var(--mute); opacity:.6; } .idxrow :disabled { opacity:.55; }
 .vbar { border:1px solid var(--line); border-radius:8px; padding:8px 10px; display:grid; gap:8px; background:var(--panel); } .vchips { display:flex; flex-wrap:wrap; gap:6px; }
 .vchip { border:1px solid var(--inbd); background:var(--btn1); color:var(--fg); border-radius:8px; padding:5px 10px; cursor:pointer; font:inherit; font-size:13px; display:inline-flex; gap:6px; align-items:center; } .vchip.on { border:2px solid var(--acc); background:var(--btn2); } .vchip i { font-style:normal; font-size:11.5px; color:var(--mute); } .vchip i.now { color:var(--ok); font-weight:600; }
 .vwarn { background:var(--warnbg); color:#78350f; border:1px solid #f1c76a; border-radius:6px; padding:6px 10px; font-size:13px; } .vmeta { padding:2px 0; }
@@ -710,6 +710,9 @@ function leaseIssues(l) {
     else { if ([p.rentCur, p.opexCur, p.cpCur].some((c) => c === 'Ismeretlen')) add('warn', `${w}: a pénznem ismeretlen`);
       if ((p.rent != null && !p.rentCur) || (p.opex != null && !p.opexCur) || (p.cp != null && !p.cpCur) || (p.oth != null && !p.othCur)) add('bad', `${w}: az ár mellett nincs pénznem`); }
     if (p.oth != null && !p.othPay) add('warn', `${w}: az egyéb díjnál nincs megadva, hogy számla vagy készpénz`);
+    { const x = pt.idx || {}; if (x.on === 'igen') { if (!(x.fees || []).length) add('warn', `${w}: évenkénti indexálás van, de nincs kiválasztva, mely díjakra`); if (!x.m || !x.d) add('warn', `${w}: évenkénti indexálás van, de nincs megadva a napja`);
+        const nx = nextIdx(x); if (nx) { const dd = Math.round((new Date(nx) - new Date(today())) / 864e5); if (dd <= 45) add('info', `${w}: indexálás ${nx}-n (${dd} nap múlva): az új árat vidd fel új díjidőszakkal`); } }
+      else if (!x.on && ['Szerződött', 'Bérlet', 'Kilépő'].includes(l.status) && (p.rent != null || p.opex != null)) add('info', `${w}: nincs megadva, hogy van-e évenkénti indexálás`); }
     if (p.xfix != null) add('bad', `${w}: egységár és fix összeg egyszerre van megadva, válaszd ki az egyiket`);
     if (p.cp != null && p.cpMode !== 'fix' && !(+pt.cf && pt.cfInc === 'nem')) add('warn', `${w}: közös terület egységára van, de nem számolódik (nincs szorzó, vagy a mennyiség bruttó)`);
     if (pt.cfInc && pt.cf == null) add('warn', `${w}: meg van adva, hogy a mennyiség nettó vagy bruttó, de a közös terület szorzó hiányzik`);
@@ -760,7 +763,7 @@ function issuesOf(t) {
   { const ACT = ['Szerződött', 'Bérlet', 'Kilépő'], objs = (x) => partsOf(x).map((pt) => pt.obj).filter(Boolean);
     for (const l of ls.filter((x) => x.use !== 'Parkoló' && ACT.includes(x.status))) for (const ob of objs(l)) { const o = Object.values(LEA).find((x) => x.id !== l.id && x.use !== 'Parkoló' && ACT.includes(x.status) && objs(x).includes(ob)); if (o) { add('warn', `${leaseLbl(l)}: ugyanez a terület (${ob}) más bérleten is aktív: ${tName(o.t)} (${o.id})`); break; } } }
   { const cs2 = conOfT(t.id), nolink = ls.filter((l) => !l.c).length; if (ls.length && !cs2.length) add('info', 'Nincs szerződés felvéve'); else if (nolink) add('info', `${nolink} bérlet nincs szerződéshez kötve`);
-    for (const c of cs2) { if (!c.idx) add('info', `${c.id}: nincs megadva, hogy van-e évenkénti indexálás`); else if (c.idx === 'igen' && (!c.idxm || !c.idxd)) add('warn', `${c.id}: évenkénti indexálás van, de nincs megadva a dátuma`); if (!c.type) add('info', `${c.id}: a szerződés típusa nincs megadva`); if (c.type === 'Szóbeli megállapodás' && c.form === 'Írásbeli') add('warn', `${c.id}: szóbeli megállapodás, de a forma írásbeli`); if (c.billing === 'Nincs számla / készpénz' && pr.pay === 'átutalás') add('warn', `${c.id}: a szerződésnél nincs számla / készpénz, a profilban a fizetés módja átutalás`); if (c.base && CTR[c.base] && isIso(c.signed) && isIso(CTR[c.base].signed) && c.signed < CTR[c.base].signed) add('warn', `${c.id}: a módosítás korábbi, mint az eredeti szerződés`); if (c.type === 'Módosítás' && !c.base) add('warn', `${c.id}: módosítás, de nincs megadva, melyik szerződést módosítja`); if (c.signed && !dateOk(c.signed)) add('warn', `${c.id}: az aláírás dátuma legyen ÉÉÉÉ-HH-NN`); } }
+    for (const c of cs2) { if (c.idx) add('info', `${c.id}: régi, szerződésszintű indexálási adat (${c.idx}${c.idxm ? ', ' + c.idxm + '-' + c.idxd : ''}). Köss hozzá bérletet, és átkerül a bérlet részeire.`); if (!c.type) add('info', `${c.id}: a szerződés típusa nincs megadva`); if (c.type === 'Szóbeli megállapodás' && c.form === 'Írásbeli') add('warn', `${c.id}: szóbeli megállapodás, de a forma írásbeli`); if (c.billing === 'Nincs számla / készpénz' && pr.pay === 'átutalás') add('warn', `${c.id}: a szerződésnél nincs számla / készpénz, a profilban a fizetés módja átutalás`); if (c.base && CTR[c.base] && isIso(c.signed) && isIso(CTR[c.base].signed) && c.signed < CTR[c.base].signed) add('warn', `${c.id}: a módosítás korábbi, mint az eredeti szerződés`); if (c.type === 'Módosítás' && !c.base) add('warn', `${c.id}: módosítás, de nincs megadva, melyik szerződést módosítja`); if (c.signed && !dateOk(c.signed)) add('warn', `${c.id}: az aláírás dátuma legyen ÉÉÉÉ-HH-NN`); } }
   I.push(...utilIssues(t));
   if (!(t.chk && t.chk.base)) add('info', 'Az alapadatok nincsenek ellenőrizve');
   if (t.own) return I.filter((i) => !/profil|[Ff]izetés|fizet-e|elszámolás|átalány|nincs ár|pénznem|szerződés|Nincs bérlet|adószám|email|kapcsolattartó/i.test(i.msg));
@@ -795,13 +798,7 @@ function ctrHtml(t, cts) {
     <td><select data-ctf="billing" aria-label="Számlázás módja">${opts(LISTS.cbill, c.billing)}</select></td>
     <td><input type="text" data-ctf="doc" value="${esc(c.doc || '')}" placeholder="dokumentum linkje" aria-label="Dokumentum"></td>
     <td><input type="text" data-ctf="note" value="${esc(c.note || '')}" placeholder="megjegyzés" aria-label="Megjegyzés"></td>
-    <td><button class="gb danger" data-delctr="${esc(c.id)}">Törlés</button></td></tr>
-    <tr data-ctid="${esc(c.id)}" class="ctrsub"><td></td><td colspan="8"><div class="idxrow"><b>Évenkénti indexálás</b>
-      <select data-ctf="idx" aria-label="Évenkénti indexálás" class="${!c.idx ? 'badin' : ''}">${opts(['igen', 'nem'], c.idx)}</select>
-      <span class="${c.idx === 'igen' ? '' : 'dim'}">napja:</span>
-      <select data-ctf="idxm" aria-label="Hónap" ${c.idx === 'igen' ? '' : 'disabled'} class="${c.idx === 'igen' && !c.idxm ? 'badin' : ''}">${opts(['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'], c.idxm)}</select><span class="${c.idx === 'igen' ? '' : 'dim'}">hó</span>
-      <select data-ctf="idxd" aria-label="Nap" ${c.idx === 'igen' ? '' : 'disabled'} class="${c.idx === 'igen' && !c.idxd ? 'badin' : ''}">${opts(Array.from({ length: 31 }, (_, i) => String(i + 1)), c.idxd)}</select><span class="${c.idx === 'igen' ? '' : 'dim'}">nap</span>
-      <input type="text" data-ctf="idxn" value="${esc(c.idxn || '')}" placeholder="melyik index? például KSH infláció, fix 3%" aria-label="Index típusa" ${c.idx === 'igen' ? '' : 'disabled'}></div></td></tr>`).join('');
+    <td><button class="gb danger" data-delctr="${esc(c.id)}">Törlés</button></td></tr>`).join('');
   return `${cts.length ? `<div class="tw2"><table class="ptab"><thead><tr><th>ID</th><th>Típus</th><th>Forma</th><th>Melyik szerződést módosítja</th><th>Aláírva</th><th>Számlázás módja</th><th>Dokumentum</th><th>Megjegyzés</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="hint">Még nincs szerződés. Egy sor egy aláírt dokumentum vagy egy szóbeli megállapodás.</div>'}
     ${cts.length === 1 && unl.length ? `<div class="hint">${unl.length} bérlet nincs szerződéshez kötve. <button class="gb" data-linkall="${esc(cts[0].id)}">Mind a ${esc(cts[0].id)} szerződéshez</button></div>` : ''}
     <div><button class="gb" data-addctr="${esc(t.id)}">＋ Szerződés</button></div>`;
@@ -844,6 +841,18 @@ function othHtml(x, j) {
   if (!on) return `<div class="pg"><span>Egyéb díj (fix összeg)</span><button class="gb" data-addoth="${j}" title="Külön fix díj, például készpénzben fizetett összeg">＋ egyéb díj</button></div>`;
   return `<div class="pg"><span>Egyéb díj (csak fix összeg)</span><div class="row"><input type="text" data-pdf="oth" inputmode="decimal" value="${x.oth == null ? '' : String(x.oth).replace('.', ',')}" placeholder="összeg" aria-label="Egyéb díj összege"><select data-pdf="othCur" aria-label="pénznem">${opts(['HUF', 'EUR'], x.othCur)}</select><select data-pdf="othPay" aria-label="Fizetés módja" class="${x.oth != null && !x.othPay ? 'badin' : ''}">${opts(['számla', 'készpénz'], x.othPay)}</select>${billSel(x, 'oth')}<input type="text" data-pdf="othN" value="${esc(x.othN || '')}" placeholder="megnevezés (nem kötelező)" aria-label="Megnevezés" style="width:170px"><button class="gb danger" data-delothr="${j}" title="Egyéb díj törlése">×</button></div></div>`;
 }
+const FEEN = [['rent', 'bérleti'], ['opex', 'üzemeltetési'], ['cp', 'közös terület'], ['oth', 'egyéb']];
+const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'], DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1));
+function nextIdx(x) { if (!x || x.on !== 'igen' || !x.m || !x.d) return null; const td = today(), y = +td.slice(0, 4), d = (yy) => `${yy}-${x.m}-${String(x.d).padStart(2, '0')}`; return d(y) >= td ? d(y) : d(y + 1); }
+function idxPartHtml(pt, i) {
+  const x = pt.idx || {}, on = x.on === 'igen', dis = on ? '' : ' disabled', dim = on ? '' : 'dim', nx = nextIdx(x);
+  return `<div class="idxrow" data-idxp="${i}"><b>Évenkénti indexálás</b>
+    <select data-pxf="on" aria-label="Évenkénti indexálás" class="${!x.on ? 'badin' : ''}">${opts(['igen', 'nem'], x.on)}</select>
+    <span class="${dim}">mire:</span>${FEEN.map(([k, lab]) => `<label class="${dim}"><input type="checkbox" data-pxfee="${k}"${(x.fees || []).includes(k) ? ' checked' : ''}${dis}>${lab}</label>`).join('')}
+    <span class="${dim}">napja:</span><select data-pxf="m" aria-label="Hónap"${dis} class="${on && !x.m ? 'badin' : ''}">${opts(MONTHS, x.m)}</select><span class="${dim}">hó</span><select data-pxf="d" aria-label="Nap"${dis} class="${on && !x.d ? 'badin' : ''}">${opts(DAYS, x.d)}</select><span class="${dim}">nap</span>
+    <input type="text" data-pxf="n" value="${esc(x.n || '')}" placeholder="melyik index? például KSH infláció, fix 3%" aria-label="Index típusa"${dis}>
+    ${nx ? `<span class="hint">következő: <b>${nx}</b></span>` : ''}</div>`;
+}
 function partHtml(l, pt, i, multi) {
   const ps = pt.periods && pt.periods.length ? pt.periods : [{}], p = ps[ps.length - 1], m = partMonthly(l, pt), ob = OBJ[pt.obj];
   const pi = (f, ph, cls) => `<input type="text" data-ptf="${f}" value="${esc(pt[f] == null ? '' : pt[f])}" placeholder="${ph || ''}"${cls ? ` class="${cls}"` : ''}>`;
@@ -877,7 +886,8 @@ function partHtml(l, pt, i, multi) {
       ${fld('Tárgykód (nem kötelező)', `<select data-ptf="obj"><option value=""></option>${Object.values(OBJ).sort((a, b) => a.id.localeCompare(b.id)).map((o) => `<option value="${esc(o.id)}"${pt.obj === o.id ? ' selected' : ''}>${esc(o.id)} · ${esc(o.name || '')}</option>`).join('')}</select><button class="gb" data-newobj="${i}" style="justify-self:start">＋ Új tárgy</button>`, 'w2', 'Régi azonosító a korábbi táblázatból. Ha helyiségeket jelölsz ki, nem kell.')}
     </div><div class="fgrid" data-newobjbox="${i}" hidden></div></details>
     ${own ? '' : `<div class="hint"><b>Díjak.</b> Minden díjnál választhatsz: egységár (a mennyiséggel szorozva) vagy fix összeg. Egyszerre csak az egyik lehet. Mindegyik saját pénznemmel. Ha a díj változik, ne írd át: nyomd meg az „＋ Új díjidőszak” gombot, a régi megmarad.</div>
-    <div style="display:grid;gap:8px">${prow}</div>`}
+    <div style="display:grid;gap:8px">${prow}</div>
+    ${idxPartHtml(pt, i)}`}
     <div>${own ? '' : `<button class="gb" data-addper="${i}">＋ Új díjidőszak</button>`}${multi ? ` <button class="gb danger" data-delpart="${i}">Rész törlése</button>` : ''}</div>
     <div class="calc" data-calc="${i}"${own ? ' hidden' : ''}>Havi nettó erre a részre (számolt, tájékoztató): ${monthTxt(m)}${m.common ? ` · közös terület ${nfm(m.common)} ${esc(l.unit || '')}` : ''}${m.notes.length ? ` <span class="hint">(${esc(m.notes.join(', '))})</span>` : ''}</div>
   </div></details>`;
@@ -1056,6 +1066,14 @@ function verBarHtml(l, cts) {
     </div><div><button class="gb danger" data-delver="${sel}">Ez a módosítás törlése</button></div>`; }
   return h + `<div><button class="gb" data-addver="${esc(l.id)}">＋ Módosítás (terület, helyiségek, időtartam…)</button> <span class="hint">Csak árváltozás? Használd a díjaknál az „Új díjidőszak” gombot, ahhoz nem kell új verzió.</span></div></div>`;
 }
+let LOADED = {};
+function migrateIdx() {   // a régi, szerződésszintű indexálás átkerül a szerződéshez kötött bérletek részeire (egyszer, utána a szerződésből törlődik)
+  if (!DB || !CANW || !LOADED.leases || !LOADED.contracts) return;
+  for (const c of Object.values(CTR)) { if (!c.idx) continue; const ls = Object.values(RAW).filter((r) => r.c === c.id); if (!ls.length) continue;
+    const mk = (pt) => { if (pt.idx) return; const x = { on: c.idx }; if (c.idx === 'igen') { const p = curP(pt); x.fees = FEEN.map((q) => q[0]).filter((q) => p[q] != null); if (!x.fees.length) x.fees = ['rent']; if (c.idxm) x.m = c.idxm; if (c.idxd) x.d = c.idxd; if (c.idxn) x.n = c.idxn; } pt.idx = x; };
+    for (const r0 of ls) { const r = r0.parts && r0.parts.length ? JSON.parse(JSON.stringify(r0)) : normLease(r0); delete r._k; r.parts.forEach(mk); for (const v of r.vers || []) ((v.snap || {}).parts || []).forEach(mk); putRaw(r); }
+    const c2 = Object.assign({}, c); for (const k of ['idx', 'idxm', 'idxd', 'idxn']) delete c2[k]; saveCtr(c2); }
+}
 function saveCtr(c) { CTR[c.id] = c; if (DB) DB.doc('contracts/' + c.id).set(c).catch(dbErr); }
 function reopen(lid) { renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; }
 function refreshLease(id) {   // csak az összegző sorok, a számolt sorok és a teendők frissülnek (a fókusz megmarad)
@@ -1098,6 +1116,11 @@ function tcardChange(el) {
     else if (f === 'obj') { if (v) { pt.obj = v; pt.objName = (OBJ[v] || {}).name; if (!pt.n) pt.n = (OBJ[v] || {}).name; } else { delete pt.obj; delete pt.objName; } }
     else if (v) pt[f] = v; else delete pt[f];
     saveLease(l); if (f === 'cf' || f === 'cfInc') { reopen(l.id); return; } refreshLease(l.id); return; }
+  else if (el.dataset.pxf || el.dataset.pxfee) { const lid = el.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), pt = l.parts[+el.closest('[data-parti]').dataset.parti], x = Object.assign({}, pt.idx || {});
+    if (el.dataset.pxfee) { const s = new Set(x.fees || []); el.checked ? s.add(el.dataset.pxfee) : s.delete(el.dataset.pxfee); x.fees = FEEN.map((f) => f[0]).filter((f) => s.has(f)); }
+    else { const f = el.dataset.pxf, v = el.value.trim(); if (v) x[f] = v; else delete x[f];
+      if (f === 'on') { if (v !== 'igen') { for (const k of ['fees', 'm', 'd', 'n']) delete x[k]; } else if (!(x.fees || []).length) { const p = curP(pt); x.fees = FEEN.map((q) => q[0]).filter((q) => p[q] != null); if (!x.fees.length) x.fees = ['rent']; } } }
+    if (Object.keys(x).length) pt.idx = x; else delete pt.idx; saveLease(l); reopen(lid); return; }
   else if (el.dataset.pdf) { const l = normLease(LV(el.closest('[data-lid]').dataset.lid)), pt = l.parts[+el.closest('[data-parti]').dataset.parti], i = +el.closest('[data-pi]').dataset.pi, x = pt.periods[i], f = el.dataset.pdf;
     if (['rent', 'opex', 'fix', 'cp', 'oth'].includes(f)) { if (el.value.trim() === '') delete x[f]; else { const n = numIn(el.value); if (n === undefined) { toast('Csak nemnegatív szám adható meg.'); el.value = x[f] == null ? '' : String(x[f]).replace('.', ','); return; } x[f] = n; } }
     else if (f === 'chk') { if (el.checked) x.chk = today(); else delete x.chk; }
@@ -1736,7 +1759,7 @@ buildFilters(); buildLayerMenu(); legend(); buildPlan(); renderList(); renderOve
   DB.collection('rooms').onSnapshot((snap) => { dbOk = true; clearTimeout(to); OV = {}; snap.docs.forEach((d) => { OV[d.id] = d.data(); }); syncDrawn(); renderAll(); }, (e) => { $('dbnote').textContent = 'adatbázis hiba: ' + (e && e.message || e.code); $('dbnote').className = 'bad'; });
   DB.collection('rates').onSnapshot((snap) => { RATES = {}; snap.docs.forEach((d) => { RATES[d.id] = d.data(); }); if (S.tab === 'rep') renderReport(); }, () => { });
   DB.collection('alloc').onSnapshot((snap) => { dbOk = true; clearTimeout(to); ALLOC = {}; snap.docs.forEach((d) => { ALLOC[d.id] = d.data(); }); renderAll(); }, () => { });
-  for (const [col, tgt] of [['contacts', CON], ['leases', LEA], ['objects', OBJ], ['contracts', CTR]]) DB.collection(col).onSnapshot((snap) => { dbOk = true; const o = {}; snap.docs.forEach((d) => { o[d.id] = Object.assign({ id: d.id }, d.data()); }); if (col === 'contacts') CON = o; else if (col === 'leases') { RAW = o; LEA = {}; for (const [id, r] of Object.entries(o)) LEA[id] = viewOf(r, curK(r)); } else if (col === 'objects') OBJ = o; else CTR = o; renderAll(); }, () => { });
+  for (const [col, tgt] of [['contacts', CON], ['leases', LEA], ['objects', OBJ], ['contracts', CTR]]) DB.collection(col).onSnapshot((snap) => { dbOk = true; const o = {}; snap.docs.forEach((d) => { o[d.id] = Object.assign({ id: d.id }, d.data()); }); LOADED[col] = true; if (col === 'contacts') CON = o; else if (col === 'leases') { RAW = o; LEA = {}; for (const [id, r] of Object.entries(o)) LEA[id] = viewOf(r, curK(r)); } else if (col === 'objects') OBJ = o; else CTR = o; migrateIdx(); renderAll(); }, () => { });
   DB.collection('tenants').onSnapshot((snap) => { dbOk = true; clearTimeout(to); TEN = {}; snap.docs.forEach((d) => { TEN[d.id] = Object.assign({ id: d.id }, d.data()); }); renderAll(); }, () => { });
 })();
 </script>
