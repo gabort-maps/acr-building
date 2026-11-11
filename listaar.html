@@ -69,9 +69,10 @@
     };
   }
   function localDb() {
-    const K = 'acrListaar.helyi', load = () => { try { return JSON.parse(localStorage.getItem(K) || '{}'); } catch (e) { return {}; } };
+    const K = 'acrListaar.helyi'; let mem; try { mem = JSON.parse(localStorage.getItem(K) || '{}'); } catch (e) { mem = {}; }   // ha a böngésző tárolója nem érhető el, a memóriában marad
+    const load = () => mem;
     const subs = {}, fire = (c) => { const all = load()[c] || {}; (subs[c] || []).forEach((cb) => cb({ docs: Object.entries(all).map(([id, d]) => ({ id, data: () => d })) })); };
-    const save = (f) => { const all = load(); f(all); try { localStorage.setItem(K, JSON.stringify(all)); } catch (e) { } };
+    const save = (f) => { f(mem); try { localStorage.setItem(K, JSON.stringify(mem)); } catch (e) { } };
     return {
       collection: (c) => ({ onSnapshot: (cb) => { (subs[c] = subs[c] || []).push(cb); setTimeout(() => fire(c), 0); } }),
       doc: (path) => { const i = path.indexOf('/'), c = path.slice(0, i), id = path.slice(i + 1); return {
