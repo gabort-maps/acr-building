@@ -38,7 +38,8 @@
       });
     });
   }
-  const clean = (d) => JSON.parse(JSON.stringify(d));
+  const clean = (d) => { const o = JSON.parse(JSON.stringify(d)); if (o && typeof o === 'object') delete o._upd; return o; };
+  const who = () => (email || '?') + '|' + TAG, withUpd = (x) => (x.data && typeof x.data === 'object' && !Array.isArray(x.data) ? Object.assign({}, x.data, { _upd: { by: x.updated_by, at: x.updated_at } }) : x.data);
   function makeDb(sb) {
     return {
       collection: (c) => ({
@@ -46,15 +47,15 @@
           const m = new Map(), snap = () => ({ docs: [...m].map(([id, d]) => ({ id, exists: true, data: () => d })) });
           (async () => {
             for (let from = 0; ; from += 1000) {
-              const r = await sb.from('docs').select('id,data').eq('collection', c).range(from, from + 999);
+              const r = await sb.from('docs').select('id,data,updated_by,updated_at').eq('collection', c).range(from, from + 999);
               if (r.error) { if (errcb) errcb(r.error); return; }
-              r.data.forEach((x) => m.set(x.id, x.data)); if (r.data.length < 1000) break;
+              r.data.forEach((x) => m.set(x.id, withUpd(x))); if (r.data.length < 1000) break;
             }
             cb(snap());
             sb.channel('docs-' + c).on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, (p) => {
               if (p.eventType === 'DELETE') { if (p.old && p.old.collection === c && m.delete(p.old.id)) cb(snap()); return; }
-              if (!p.new || p.new.collection !== c || p.new.updated_by === TAG) return;
-              m.set(p.new.id, p.new.data); cb(snap());
+              if (!p.new || p.new.collection !== c || String(p.new.updated_by || '').endsWith('|' + TAG) || p.new.updated_by === TAG) return;
+              m.set(p.new.id, withUpd(p.new)); cb(snap());
             }).subscribe();
           })();
         },
@@ -62,7 +63,7 @@
       doc: (path) => {
         const i = path.indexOf('/'), c = path.slice(0, i), id = path.slice(i + 1);
         return {
-          set: async (d) => { const r = await sb.from('docs').upsert({ collection: c, id, data: clean(d), updated_by: TAG, updated_at: new Date().toISOString() }); if (r.error) throw r.error; },
+          set: async (d) => { const r = await sb.from('docs').upsert({ collection: c, id, data: clean(d), updated_by: who(), updated_at: new Date().toISOString() }); if (r.error) throw r.error; },
           delete: async () => { const r = await sb.from('docs').delete().eq('collection', c).eq('id', id); if (r.error) throw r.error; },
         };
       },
@@ -78,8 +79,8 @@
       const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
       let j; try { j = JSON.parse(await f.text()); } catch (e) { alert('Ez nem érvényes mentésfájl.'); return; }
       if (j.format !== 'acr-admin-1') { alert('Ez nem ACR admin mentés.'); return; }
-      const cols = ['rooms', 'alloc', 'tenants', 'contacts', 'contracts', 'leases', 'objects', 'rates'], rows = [];
-      for (const c of cols) for (const [id, d] of Object.entries(j[c] || {})) rows.push({ collection: c, id, data: clean(d), updated_by: TAG, updated_at: new Date().toISOString() });
+      const cols = ['rooms', 'alloc', 'tenants', 'contacts', 'contracts', 'leases', 'objects', 'rates', 'indices'], rows = [];
+      for (const c of cols) for (const [id, d] of Object.entries(j[c] || {})) rows.push({ collection: c, id, data: clean(d), updated_by: who(), updated_at: new Date().toISOString() });
       if (!confirm(`${rows.length} tétel betöltése. A már meglévő, azonos azonosítójú tételek felülíródnak. Folytatod?`)) return;
       for (let k = 0; k < rows.length; k += 200) { const r = await sb.from('docs').upsert(rows.slice(k, k + 200)); if (r.error) { alert('Hiba a betöltésnél: ' + r.error.message); return; } }
       alert('Kész, az oldal újratölt.'); location.reload();
@@ -203,6 +204,16 @@ select, input[type=text], input[type=search] { background:var(--panel); border:1
 .ctab input.badin { border-color:#dc2626; background:#fef2f2; } .lease { border:1px solid var(--line); border-radius:7px; } .lease > summary { cursor:pointer; padding:6px 10px; display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; list-style:none; } .lease > summary::-webkit-details-marker { display:none; }
 .lease > summary::before { content:'▸'; color:var(--mute); } .lease[open] > summary::before { content:'▾'; }
 .idxrow { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; } .idxrow select { width:auto; min-width:70px; } .idxrow label { display:inline-flex; gap:4px; align-items:center; font-size:13px; } .idxrow input[type=text] { width:auto; flex:1 1 220px; max-width:360px; } .idxrow .dim { color:var(--mute); opacity:.6; } .idxrow :disabled { opacity:.55; }
+.lview { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:6px 18px; padding:4px 2px; } .lview > div { display:grid; gap:1px; } .lview > div > span { font-size:10.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--mute); } .lview b { font-weight:500; font-size:13.5px; }
+.lbtns { display:flex; flex-wrap:wrap; gap:8px; align-items:center; } .lease.editing { outline:2px solid var(--acc); outline-offset:-1px; }
+.stp { border:1px solid var(--line); border-radius:8px; padding:8px 10px 10px; display:grid; gap:8px; background:var(--panel); } .stp-h { margin:0; font-size:14px; display:flex; align-items:center; gap:8px; } .stp-h .no { display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--acc); color:var(--accfg); font-size:12px; } .stp-h .st { margin-left:auto; font-size:12px; padding:1px 8px; border-radius:10px; } .stp-h .st.ok { color:var(--ok); } .stp-h .st.warn { background:var(--warnbg); color:#92400e; }
+.feebox { border:2px solid var(--acc); border-radius:8px; padding:8px 10px; display:grid; gap:8px; } .feebox .idxrow { border-top:1px dashed var(--line); padding-top:8px; }
+.fld .cfrow span, .fld .cfrow b, .per .pg > span.hint, .fld .cfrow .hint { text-transform:none; letter-spacing:0; font-size:12.5px; } .fld .cfrow b { color:var(--fg); } .per input[type=date] { width:140px; }
+.cfrow { display:flex; gap:6px; align-items:center; flex-wrap:wrap; } .cfrow input[type=text] { width:80px; } .cfm { font-size:13px; } .subpart { border-left:3px solid var(--line); padding-left:8px; display:grid; gap:8px; } .subh { display:flex; gap:8px; align-items:center; }
+.tsum { font-size:13px; color:var(--mute); padding:2px 2px 6px; } .tsum b { font-weight:600; } .warnt { color:var(--warn); } .okt { color:var(--ok); }
+.iss.jump { cursor:pointer; text-decoration:underline dotted; } .flash { animation:flash 1.6s ease-out; } @keyframes flash { 0% { box-shadow:0 0 0 3px var(--hi); } 100% { box-shadow:0 0 0 0 transparent; } }
+.ucard .un { font-size:14px; } .ptab.ro td { padding:4px 6px; } .miss { color:var(--badfg); font-weight:600; } .tag.old { background:var(--soft); color:var(--mute); } label.ck { display:inline-flex; gap:5px; align-items:center; font-size:12.5px; } label.ck input { width:auto; }
+.ixv { flex-wrap:wrap; } .ixv label { display:inline-flex; gap:3px; align-items:center; font-size:12px; } tr.jumprow { cursor:pointer; } tr.jumprow:hover td { background:var(--soft); } tr.jumprow.soon td:first-child { color:var(--warn); font-weight:600; } tr.jumprow.past td { opacity:.65; }
 .vbar { border:1px solid var(--line); border-radius:8px; padding:8px 10px; display:grid; gap:8px; background:var(--panel); } .vchips { display:flex; flex-wrap:wrap; gap:6px; }
 .vchip { border:1px solid var(--inbd); background:var(--btn1); color:var(--fg); border-radius:8px; padding:5px 10px; cursor:pointer; font:inherit; font-size:13px; display:inline-flex; gap:6px; align-items:center; } .vchip.on { border:2px solid var(--acc); background:var(--btn2); } .vchip i { font-style:normal; font-size:11.5px; color:var(--mute); } .vchip i.now { color:var(--ok); font-weight:600; }
 .vwarn { background:var(--warnbg); color:#78350f; border:1px solid #f1c76a; border-radius:6px; padding:6px 10px; font-size:13px; } .vmeta { padding:2px 0; }
@@ -349,6 +360,8 @@ table#ov { min-width:1240px; }
       <button class="tab" role="tab" id="tab-plan" aria-selected="false" data-tab="plan">Alaprajz és lista</button>
       <button class="tab" role="tab" id="tab-ten" aria-selected="false" data-tab="ten">Bérlők</button>
       <button class="tab" role="tab" id="tab-rep" aria-selected="false" data-tab="rep">Kimutatás</button>
+      <button class="tab" role="tab" id="tab-due" aria-selected="false" data-tab="due">Határidők</button>
+      <button class="tab" role="tab" id="tab-rates" aria-selected="false" data-tab="rates">Árfolyam és infláció</button>
     </div>
     <div class="menu" id="exp-menu" hidden><button class="tab" id="exp-btn" aria-haspopup="true" aria-expanded="false">Exportálás ▾</button>
       <div class="pop" id="exp-pop" role="menu"><button class="gb" data-exp="xlsx">Excel (.xlsx), minden lap egy fájlban</button><button class="gb" data-exp="json">Minden adat (JSON, biztonsági mentés)</button><div style="font-size:11.5px;color:var(--mute)">Egyes lapok CSV-ként:</div><button class="gb" data-exp="summary">Összesítő (CSV)</button><button class="gb" data-exp="rooms">Helyiséglista, mind a három épület (CSV)</button><button class="gb" data-exp="alloc">Bérlők szerinti kiosztások (CSV)</button><button class="gb" data-exp="tenants">Bérlők (CSV)</button><button class="gb" data-exp="report">Kimutatás: díjak bérletenként (CSV)</button></div></div>
@@ -412,22 +425,38 @@ table#ov { min-width:1240px; }
         <div class="fg"><span>Részletek pénzneme</span><span class="seg" id="r-cur"><button data-rc="EUR" aria-pressed="true">EUR</button><button data-rc="HUF" aria-pressed="false">HUF</button></span></div>
         <label class="chk"><input type="checkbox" id="r-neg"> Tárgyalásban lévők is</label>
         <div class="fg"><span>EUR árfolyam (Ft)</span><select id="r-rate" aria-label="Árfolyam"></select></div>
-        <div class="fg ratein"><span>Új árfolyam felvétele (MNB)</span><span style="display:flex;gap:4px"><input type="date" id="r-date" aria-label="Dátum"><input type="text" id="r-val" inputmode="decimal" placeholder="például 364,82" size="12" aria-label="Árfolyam"><button class="gb" id="r-save">Mentés</button></span></div>
-      </div>
+        <div class="fg"><span>&nbsp;</span><button class="gb" data-tab="rates">Árfolyam megadása ›</button></div>
+            </div>
       <div id="r-warn"></div>
       <div class="tw"><table id="rtab"><thead id="rhead"></thead><tbody id="rrows"></tbody></table></div>
       <div id="r-notes"></div>
       <div class="hint">Havi nettó összegek a bérletek aktuális díjidőszakából. Az eseti díjak nem számítanak bele. Az €/m² és a Ft/m² a bérleti, az üzemeltetési és a közös területi díjat tartalmazza a szerződött m²-re, parkoló nélkül; fix díjnál is kiszámolódik, ha van terület.</div>
     </div>
   </section>
+  <section id="v-due" class="view hidden">
+    <div class="card" style="padding:12px 14px;display:grid;gap:12px">
+      <div class="rbar"><div class="fg"><span>Időszak</span><select id="du-win" aria-label="Időszak"><option value="30">30 nap</option><option value="90" selected>90 nap</option><option value="180">180 nap</option><option value="365">1 év</option></select></div><div class="hint">Indexálások, lejáratok, felmondások és jövőbeli módosítások az összes bérlőnél (az elmúlt 30 nappal együtt). Kattints egy sorra: megnyílik a bérlemény.</div></div>
+      <div class="tw"><table id="dutab"><thead><tr><th>Dátum</th><th class="num">Hátra</th><th>Bérlő</th><th>Bérlemény</th><th>Esemény</th></tr></thead><tbody id="du-rows"></tbody></table></div>
+    </div>
+  </section>
+  <section id="v-rates" class="view hidden">
+    <div class="card" style="padding:12px 14px;display:grid;gap:14px">
+      <h3 style="margin:0">EUR árfolyam (MNB)</h3>
+              <div class="fg ratein" style="max-width:460px"><span>Új árfolyam felvétele (MNB)</span><span style="display:flex;gap:4px"><input type="date" id="r-date" aria-label="Dátum"><input type="text" id="r-val" inputmode="decimal" placeholder="például 364,82" size="12" aria-label="Árfolyam"><button class="gb" id="r-save">Mentés</button></span></div>
+      <div id="rt-list"></div>
+      <h3 style="margin:6px 0 0">Inflációs indexek</h3>
+      <div class="hint">Az évenkénti indexálásnál ezek közül lehet választani. A lista szerkeszthető: átnevezés, új index, éves értékek (%).</div>
+      <div id="ix-list" style="display:grid;gap:8px"></div>
+    </div>
+  </section>
   <section id="v-ten" class="view hidden">
     <details class="sec guide" id="tguide" style="margin-bottom:12px;background:var(--panel)"><summary>Hogyan töltsd ki</summary><div class="secb"><ol>
-      <li>Bal oldalt válassz egy bérlőt. A szám mellette azt mutatja, hány teendő van nála; a zöld pipa azt, hogy rendben van.</li>
-      <li>A kártya tetején a színes címkék a teendők: <b>piros</b> hiány vagy hiba, <b>sárga</b> figyelmeztetés, szürke tájékoztatás. Ha javítod az adatot, a címke eltűnik.</li>
-      <li>Haladj fentről lefelé: Alapadatok, Kapcsolattartók, Számlázási profil, Szerződések, Közművek, Bérletek. Ha egy szakasz egyezik a szerződéssel vagy a számlával, pipáld ki az <b>Ellenőrizve</b> jelölőt.</li>
-      <li>Egy <b>bérlet</b> egy szerződésben bérelt dolog (iroda, raktár, parkoló). Add meg a mennyiséget, a dátumokat, majd a <b>díjakat</b>: egységár (m² vagy db) vagy fix összeg, mindig pénznemmel.</li>
-      <li>Ha a szerződés több területet nevez meg más árral, a <b>＋ Rész</b> gombbal bontsd részekre. A <b>＋ Helyiségek</b> gombbal jelöld ki, melyik helyiségekről van szó: a program összeveti az alaprajzi területet a szerződéssel.</li>
-      <li>Ha egy díj megváltozik, ne írd át a régit: <b>＋ Új díjidőszak</b>. Ha egy bérlet véget ér, ne töröld: a státuszt állítsd <b>Lejárt</b>-ra.</li>
+      <li>Bal oldalt válassz egy bérlőt. A szám mellette a teendők száma; a zöld pipa azt jelenti, hogy rendben van.</li>
+      <li>A kártya tetején a színes címkék a teendők (<b>piros</b> hiba, <b>sárga</b> figyelmeztetés, szürke tájékoztatás). <b>Kattints egy címkére</b>: az oldal odaugrik, ahol javítani kell.</li>
+      <li>A <b>bérlemények</b> alapból csak olvashatók. A <b>✎ Szerkesztés</b> gombbal nyílik meg a négy lépés: 1 Alapadatok, 2 Terület, 3 Díjak és indexálás, 4 Fizetés. A lépés melletti ✓ vagy ! mutatja, hol hiányzik még valami. A végén <b>✓ Kész</b>.</li>
+      <li>Ha egy díj megváltozik (például indexálás), ne írd át: <b>＋ Új ár egy dátumtól</b>. Ha a terület, a helyiségek vagy az időtartam változik: <b>＋ Módosítás</b>.</li>
+      <li>A számlázási profil csak összesítés: a fizetés módját, a pénznemet és a határidőt a bérleményeknél és a közműveknél adod meg.</li>
+      <li>Az árfolyamot és az inflációs indexeket az <b>Árfolyam és infláció</b> fülön, a közelgő indexálásokat és lejáratokat a <b>Határidők</b> fülön látod.</li>
       <li>Amit nem tudsz, hagyd üresen, és írd a megjegyzésbe. Minden módosítás azonnal mentődik (jobb felül: „mentve”).</li>
     </ol></div></details>
     <div class="tgrid">
@@ -702,7 +731,7 @@ const monthTxt = (m) => Object.entries(m.out).map(([c, v]) => `<b>${nfm(v)}</b> 
 const partsSum = (l) => partsOf(l).reduce((s, pt) => s + (+pt.qty || 0), 0);
 const cutTxt = (s) => (String(s).length > 34 ? String(s).slice(0, 32) + '…' : String(s));
 const leaseName = (l) => partsOf(l).map((pt) => pt.n || (OBJ[pt.obj] || {}).name || pt.obj).filter(Boolean).join(' + ');
-const leaseLbl = (l) => `${cutTxt(leaseName(l) || 'bérlet')} (${l.id})`;
+const leaseLbl = (l) => `${cutTxt(leaseName(l) || 'bérlemény')} (${l.id})`;
 function leaseIssues(l) {
   const I = [], add = (lv, msg) => I.push({ lv, msg }), parts = partsOf(l), multi = parts.length > 1, L = leaseLbl(l);
   parts.forEach((pt, i) => { const w = multi ? `${cutTxt(pt.n || (OBJ[pt.obj] || {}).name || (i + 1) + '. rész')} (${l.id}/${i + 1})` : L, ps = pt.periods || [], p = curP(pt), F = feeLines(l, pt), byUnit = (p.rent != null && p.rentMode !== 'fix') || (p.opex != null && p.opexMode !== 'fix') || (p.cp != null && p.cpMode !== 'fix');
@@ -711,7 +740,8 @@ function leaseIssues(l) {
       if ((p.rent != null && !p.rentCur) || (p.opex != null && !p.opexCur) || (p.cp != null && !p.cpCur) || (p.oth != null && !p.othCur)) add('bad', `${w}: az ár mellett nincs pénznem`); }
     if (p.oth != null && !p.othPay) add('warn', `${w}: az egyéb díjnál nincs megadva, hogy számla vagy készpénz`);
     { const x = pt.idx || {}; if (x.on === 'igen') { if (!(x.fees || []).length) add('warn', `${w}: évenkénti indexálás van, de nincs kiválasztva, mely díjakra`); if (!x.m || !x.d) add('warn', `${w}: évenkénti indexálás van, de nincs megadva a napja`);
-        const nx = nextIdx(x); if (nx) { const dd = Math.round((new Date(nx) - new Date(today())) / 864e5); if (dd <= 45) add('info', `${w}: indexálás ${nx}-n (${dd} nap múlva): az új árat vidd fel új díjidőszakkal`); } }
+        if (!x.ix) add('warn', `${w}: évenkénti indexálás van, de nincs kiválasztva az index`); else { const q = ixOf(x.ix); if (q && q.kind === 'fix' && x.pct == null) add('warn', `${w}: fix % indexálás, de a % nincs megadva`); }
+        const nx = nextIdx(x); if (nx) { const dd = Math.round((new Date(nx) - new Date(today())) / 864e5); if (dd <= 45) add('info', `${w}: indexálás ${nx}-n (${dd} nap múlva): az új árat vidd fel az „Új ár egy dátumtól” gombbal`); } }
       else if (!x.on && ['Szerződött', 'Bérlet', 'Kilépő'].includes(l.status) && (p.rent != null || p.opex != null)) add('info', `${w}: nincs megadva, hogy van-e évenkénti indexálás`); }
     if (p.xfix != null) add('bad', `${w}: egységár és fix összeg egyszerre van megadva, válaszd ki az egyiket`);
     if (p.cp != null && p.cpMode !== 'fix' && !(+pt.cf && pt.cfInc === 'nem')) add('warn', `${w}: közös terület egységára van, de nem számolódik (nincs szorzó, vagy a mennyiség bruttó)`);
@@ -744,6 +774,7 @@ function leaseIssues(l) {
   if (l.status === 'Kilépő' && !l.notice && !isIso(l.end)) add('warn', `${L}: kilépő bérlő, de nincs felmondás vagy vég dátum`);
   if (isIso(l.notice) && isIso(l.start) && l.notice < l.start) add('bad', `${L}: a felmondás dátuma a kezdés előtt van`);
   if (l.status === 'Tárgyalásban' && isIso(l.start) && l.start < today() && parts.some((pt) => curP(pt).rent != null)) add('info', `${L}: a kezdés elmúlt, a státusz még Tárgyalásban`);
+  if (['Szerződött', 'Bérlet', 'Kilépő'].includes(l.status) && !l.orphan && parts.some((pt) => { const p = curP(pt); return p.rent != null || p.opex != null || p.oth != null; })) { if (!l.method) add('warn', `${L}: nincs megadva a fizetés módja`); else if (l.method === 'átutalás' && (l.due == null || l.due === '')) add('warn', `${L}: nincs megadva a fizetési határidő`); }
   verIssues(l, (lv, msg) => add(lv, `${L}: ${msg}`));
   { const c = CTR[l.c]; if (l.c && !c) add('warn', `${L}: a hozzákötött szerződés (${l.c}) nem létezik`); else if (c && c.t !== l.t) add('bad', `${L}: a hozzákötött szerződés más bérlőé`); }
   return I;
@@ -756,13 +787,12 @@ function issuesOf(t) {
   if (!cs.length) add(t.cname ? 'warn' : 'bad', t.cname ? 'A kapcsolattartó még a régi mezőben van: vedd át a Kapcsolattartók között' : 'Nincs kapcsolattartó');
   else { const pn = cs.filter((c) => c.primary).length; if (pn !== 1) add('bad', pn ? 'Több elsődleges kapcsolattartó van' : 'Nincs elsődleges kapcsolattartó');
     for (const c of cs) { if (!c.name) add('warn', `${c.id}: a név hiányzik`); if (!c.phone && !c.email) add('warn', `${c.name || c.id}: nincs telefon és nincs email`); else if (c.phone && !isPhone(fmtPhone(c.phone))) add('info', `${c.name || c.id}: a telefonszám nem ismerhető fel magyarként (+36 30 123 4567)`); if (c.email && !isEmail(c.email)) add('warn', `${c.name || c.id}: az email nem érvényes`); } }
-  if (!t.prof) add('warn', 'A számlázási profil hiányzik');
-  else { if (!pr.pay) add('warn', 'A fizetés módja nincs megadva'); if (!pr.due && pr.pay !== 'készpénz') add('warn', 'A fizetési határidő nincs megadva'); }
+  if (!t.own && !(pr.deliver || []).length) add('info', 'Nincs megadva a kézbesítés módja (számlázási profil)');
   if (!ls.length) add('info', 'Nincs bérlet felvéve');
   for (const l of ls) I.push(...leaseIssues(l));
   { const ACT = ['Szerződött', 'Bérlet', 'Kilépő'], objs = (x) => partsOf(x).map((pt) => pt.obj).filter(Boolean);
     for (const l of ls.filter((x) => x.use !== 'Parkoló' && ACT.includes(x.status))) for (const ob of objs(l)) { const o = Object.values(LEA).find((x) => x.id !== l.id && x.use !== 'Parkoló' && ACT.includes(x.status) && objs(x).includes(ob)); if (o) { add('warn', `${leaseLbl(l)}: ugyanez a terület (${ob}) más bérleten is aktív: ${tName(o.t)} (${o.id})`); break; } } }
-  { const cs2 = conOfT(t.id), nolink = ls.filter((l) => !l.c).length; if (ls.length && !cs2.length) add('info', 'Nincs szerződés felvéve'); else if (nolink) add('info', `${nolink} bérlet nincs szerződéshez kötve`);
+  { const cs2 = conOfT(t.id), nolink = ls.filter((l) => !l.c).length; if (ls.length && !cs2.length) add('info', 'Nincs szerződés felvéve'); else if (nolink) add('info', `${nolink} bérlemény nincs szerződéshez kötve`);
     for (const c of cs2) { if (c.idx) add('info', `${c.id}: régi, szerződésszintű indexálási adat (${c.idx}${c.idxm ? ', ' + c.idxm + '-' + c.idxd : ''}). Köss hozzá bérletet, és átkerül a bérlet részeire.`); if (!c.type) add('info', `${c.id}: a szerződés típusa nincs megadva`); if (c.type === 'Szóbeli megállapodás' && c.form === 'Írásbeli') add('warn', `${c.id}: szóbeli megállapodás, de a forma írásbeli`); if (c.billing === 'Nincs számla / készpénz' && pr.pay === 'átutalás') add('warn', `${c.id}: a szerződésnél nincs számla / készpénz, a profilban a fizetés módja átutalás`); if (c.base && CTR[c.base] && isIso(c.signed) && isIso(CTR[c.base].signed) && c.signed < CTR[c.base].signed) add('warn', `${c.id}: a módosítás korábbi, mint az eredeti szerződés`); if (c.type === 'Módosítás' && !c.base) add('warn', `${c.id}: módosítás, de nincs megadva, melyik szerződést módosítja`); if (c.signed && !dateOk(c.signed)) add('warn', `${c.id}: az aláírás dátuma legyen ÉÉÉÉ-HH-NN`); } }
   I.push(...utilIssues(t));
   if (!(t.chk && t.chk.base)) add('info', 'Az alapadatok nincsenek ellenőrizve');
@@ -781,11 +811,12 @@ function tlistHtml() {
   const list = sortedTen().map((t) => ({ t, is: issuesOf(t) })).filter(({ t, is }) => (!q || [t.id, t.name, t.tax, t.addr, t.email, t.note].join(' ').toLowerCase().includes(q)) && (!todo || is.some((i) => i.lv !== 'info')));
   $('t-count').textContent = `${list.length} bérlő`;
   return list.map(({ t, is }) => { const bad = is.filter((i) => i.lv === 'bad').length, warn = is.filter((i) => i.lv === 'warn').length, n = bad + warn, nl = leaOf(t.id).length;
-    return `<button class="ti" role="option" data-tsel="${esc(t.id)}" aria-selected="${S.tsel === t.id}"><span class="nm">${esc(t.name)}<span class="sub">${t.own ? 'saját használat' : nl ? nl + ' bérlet' : 'nincs bérlet'}</span></span><span class="id">${esc(t.id)}</span><span class="bdg ${bad ? 'bad' : n ? '' : 'ok'}" title="${n ? n + ' teendő' : 'nincs teendő'}">${n || '✓'}</span></button>`; }).join('') || '<div class="hint" style="padding:10px">Nincs találat.</div>';
+    return `<button class="ti" role="option" data-tsel="${esc(t.id)}" aria-selected="${S.tsel === t.id}"><span class="nm">${esc(t.name)}<span class="sub">${t.own ? 'saját használat' : nl ? nl + ' bérlemény' : 'nincs bérlemény'}</span></span><span class="id">${esc(t.id)}</span><span class="bdg ${bad ? 'bad' : n ? '' : 'ok'}" title="${n ? n + ' teendő' : 'nincs teendő'}">${n || '✓'}</span></button>`; }).join('') || '<div class="hint" style="padding:10px">Nincs találat.</div>';
 }
 function issuesHtml(t) {
   const is = issuesOf(t), core = is.filter((i) => i.lv !== 'info');
-  return (core.length ? '' : '<span class="iss good">✓ Nincs hiányzó vagy hibás adat</span>') + is.map((i) => `<span class="iss ${i.lv}">${esc(i.msg)}</span>`).join('');
+  const sec = (m) => (/\(L\d{3}/.test(m) ? null : /adószám|számlázási cím|számlázási email|alapadat/i.test(m) ? 'base' : /kapcsolattartó|telefon|elsődleges|K\d{3}/i.test(m) ? 'con' : /^(Áram|Fűtés|Hűtés)/.test(m) ? 'util' : /szerződés|^C\d{3}|bérlet nincs/i.test(m) ? 'ctr' : /kézbesítés/i.test(m) ? 'prof' : null);
+  return (core.length ? '' : '<span class="iss good">✓ Nincs hiányzó vagy hibás adat</span>') + is.map((i) => { const s = sec(i.msg); return s ? `<span class="iss ${i.lv} jump" data-jumpsec="${s}" title="Ugrás">${esc(i.msg)}</span>` : issChip(i); }).join('');
 }
 function fld(label, input, cls, hint) { return `<label class="fld ${cls || ''}"><span>${label}</span>${input}${hint ? `<small>${hint}</small>` : ''}</label>`; }
 function ctrHtml(t, cts) {
@@ -800,7 +831,7 @@ function ctrHtml(t, cts) {
     <td><input type="text" data-ctf="note" value="${esc(c.note || '')}" placeholder="megjegyzés" aria-label="Megjegyzés"></td>
     <td><button class="gb danger" data-delctr="${esc(c.id)}">Törlés</button></td></tr>`).join('');
   return `${cts.length ? `<div class="tw2"><table class="ptab"><thead><tr><th>ID</th><th>Típus</th><th>Forma</th><th>Melyik szerződést módosítja</th><th>Aláírva</th><th>Számlázás módja</th><th>Dokumentum</th><th>Megjegyzés</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="hint">Még nincs szerződés. Egy sor egy aláírt dokumentum vagy egy szóbeli megállapodás.</div>'}
-    ${cts.length === 1 && unl.length ? `<div class="hint">${unl.length} bérlet nincs szerződéshez kötve. <button class="gb" data-linkall="${esc(cts[0].id)}">Mind a ${esc(cts[0].id)} szerződéshez</button></div>` : ''}
+    ${cts.length === 1 && unl.length ? `<div class="hint">${unl.length} bérlemény nincs szerződéshez kötve. <button class="gb" data-linkall="${esc(cts[0].id)}">Mind a ${esc(cts[0].id)} szerződéshez</button></div>` : ''}
     <div><button class="gb" data-addctr="${esc(t.id)}">＋ Szerződés</button></div>`;
 }
 function cmpLine(l, pt, multi) {
@@ -845,87 +876,128 @@ const FEEN = [['rent', 'bérleti'], ['opex', 'üzemeltetési'], ['cp', 'közös 
 const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'], DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1));
 function nextIdx(x) { if (!x || x.on !== 'igen' || !x.m || !x.d) return null; const td = today(), y = +td.slice(0, 4), d = (yy) => `${yy}-${x.m}-${String(x.d).padStart(2, '0')}`; return d(y) >= td ? d(y) : d(y + 1); }
 function idxPartHtml(pt, i) {
-  const x = pt.idx || {}, on = x.on === 'igen', dis = on ? '' : ' disabled', dim = on ? '' : 'dim', nx = nextIdx(x);
+  const x = pt.idx || {}, on = x.on === 'igen', dis = on ? '' : ' disabled', dim = on ? '' : 'dim', nx = nextIdx(x), ix = ixOf(x.ix);
   return `<div class="idxrow" data-idxp="${i}"><b>Évenkénti indexálás</b>
     <select data-pxf="on" aria-label="Évenkénti indexálás" class="${!x.on ? 'badin' : ''}">${opts(['igen', 'nem'], x.on)}</select>
     <span class="${dim}">mire:</span>${FEEN.map(([k, lab]) => `<label class="${dim}"><input type="checkbox" data-pxfee="${k}"${(x.fees || []).includes(k) ? ' checked' : ''}${dis}>${lab}</label>`).join('')}
+    <span class="${dim}">index:</span><select data-pxf="ix" aria-label="Index"${dis} class="${on && !x.ix ? 'badin' : ''}"><option value=""></option>${ixList().map((q) => `<option value="${esc(q.id)}"${x.ix === q.id ? ' selected' : ''}>${esc(q.name)}</option>`).join('')}</select>
+    ${ix && ix.kind === 'fix' ? `<input type="text" data-pxf="pct" inputmode="decimal" value="${esc(nIn(x.pct))}" placeholder="%" aria-label="Fix %" style="width:60px"${dis}><span class="${dim}">%</span>` : ''}
     <span class="${dim}">napja:</span><select data-pxf="m" aria-label="Hónap"${dis} class="${on && !x.m ? 'badin' : ''}">${opts(MONTHS, x.m)}</select><span class="${dim}">hó</span><select data-pxf="d" aria-label="Nap"${dis} class="${on && !x.d ? 'badin' : ''}">${opts(DAYS, x.d)}</select><span class="${dim}">nap</span>
-    <input type="text" data-pxf="n" value="${esc(x.n || '')}" placeholder="melyik index? például KSH infláció, fix 3%" aria-label="Index típusa"${dis}>
+    <input type="text" data-pxf="n" value="${esc(x.n || '')}" placeholder="megjegyzés" aria-label="Megjegyzés"${dis}>
     ${nx ? `<span class="hint">következő: <b>${nx}</b></span>` : ''}</div>`;
 }
-function partHtml(l, pt, i, multi) {
-  const ps = pt.periods && pt.periods.length ? pt.periods : [{}], p = ps[ps.length - 1], m = partMonthly(l, pt), ob = OBJ[pt.obj];
-  const pi = (f, ph, cls) => `<input type="text" data-ptf="${f}" value="${esc(pt[f] == null ? '' : pt[f])}" placeholder="${ph || ''}"${cls ? ` class="${cls}"` : ''}>`;
-  const pr = (j, f, cur) => `<td><input type="text" data-pdf="${f}" inputmode="decimal" value="${ps[j][f] == null ? '' : String(ps[j][f]).replace('.', ',')}" aria-label="${f}"></td><td><select data-pdf="${cur}" aria-label="${cur}">${opts(LISTS.cur, ps[j][cur])}</select></td>`;
-  const amt = (j, f, cur) => { const x = psn[j], fixm = x[f + 'Mode'] === 'fix'; return `<div class="row"><input type="text" data-pdf="${f}" inputmode="decimal" value="${x[f] == null ? '' : String(x[f]).replace('.', ',')}" placeholder="összeg" aria-label="${f}"><select data-pdf="${cur}" aria-label="pénznem">${opts(LISTS.cur, x[cur])}</select><select data-pdf="${f}Mode" aria-label="egységár vagy fix" title="Egységár: a mennyiséggel szorozva. Fix: a megadott összeg, mennyiségtől függetlenül.">${f === 'cp' ? '<option value="">/m² (a közös területre)</option>' : `<option value="">${l.unit === 'db' ? '/db' : l.unit === 'm²' ? '/m²' : 'egységár'}</option>`}<option value="fix"${fixm ? ' selected' : ''}>fix összeg</option></select>${billSel(x, f)}${f === 'rent' && fixm ? `<select data-pdf="gross" aria-label="Nettó vagy bruttó"><option value="">nettó</option><option value="1"${x.gross ? ' selected' : ''}>bruttó</option></select><select data-pdf="freq" aria-label="Gyakoriság"><option value="">havi</option>${LISTS.freq.filter((q) => q !== 'Havi').map((q) => `<option${x.freq === q ? ' selected' : ''}>${q}</option>`).join('')}</select>` : ''}</div>`; };
-  const psn = ps.map(np);
-  const per = (l.unit === 'db' ? '/db' : '/m²');
-  const own = !!(TEN[l.t] && TEN[l.t].own);
-  const showCp0 = (+pt.cf && pt.cfInc === 'nem') || ps.some((x) => x.cp != null);
-  const prow = ps.map((x, j) => { const cur = j === ps.length - 1; return `<div class="per ${cur ? 'cur' : 'old'}" data-pi="${j}">
-    <div class="pg"><span>Érvényes ettől</span><div class="row"><input type="text" data-pdf="from" value="${esc(x.from || '')}" placeholder="ÉÉÉÉ-HH-NN" aria-label="Érvényes" class="${x.from && !dateOk(x.from) ? 'badin' : ''}">${cur ? '<span class="tag">aktuális</span>' : ''}</div></div>
-    <div class="pg"><span>Bérleti díj</span>${amt(j, 'rent', 'rentCur')}</div>
-    <div class="pg"><span>Üzemeltetési díj</span>${amt(j, 'opex', 'opexCur')}</div>
-    ${showCp0 || psn[j].cpMode === 'fix' ? `<div class="pg"><span>Közös terület / közös költség</span>${amt(j, 'cp', 'cpCur')}</div>` : `<div class="pg"><span>Közös költség</span><button class="gb" data-addcp="${j}" title="Fix vagy m²-alapú közös költség felvétele">＋ közös költség</button></div>`}
-    ${othHtml(x, j)}
-    ${psn[j].xfix != null ? `<div class="pg"><span>Régi fix összeg (ellentmond)</span><div class="row"><b>${nfm(psn[j].xfix)} ${esc(psn[j].xfixCur || '')}</b><button class="gb danger" data-dropfix="${j}">Törlés</button></div></div>` : ''}
-    <div class="pg"><span>Megjegyzés</span><input type="text" class="wide" data-pdf="note" value="${esc(x.note || '')}" placeholder="például: a számla szerint" aria-label="Megjegyzés"></div>
-    <div class="pg"><span>Ellenőrizve</span><div class="row"><input type="checkbox" data-pdf="chk" aria-label="Ellenőrizve" title="${x.chk ? 'Ellenőrizve: ' + esc(x.chk) : 'Egyezik a szerződéssel vagy a számlával'}"${x.chk ? ' checked' : ''} style="width:auto">${ps.length > 1 ? `<button class="gb danger" data-delper="${j}" title="Ez az időszak törlése">×</button>` : ''}</div></div>
-  </div>`; }).join('');
-  const title = pt.n || (ob && ob.name) || pt.obj || `rész ${i + 1}`;
-  return `<details class="lease part" data-parti="${i}" open><summary><b>${multi ? `${i + 1}. rész` : 'Terület és díjak'}</b> <span>${esc(title)}</span><span class="hint">${pt.qty != null ? nfm(+pt.qty) + ' ' + esc(l.unit || '') + ' · ' : ''}${esc(feeTxt(p, l.unit)) || 'nincs ár'}</span></summary><div class="lb">
-    <div class="fgrid">
-      ${fld('Megnevezés a szerződésben', pi('n', 'például A ép 2. emelet jobb szárny'), 'w2', 'Ahogy a szerződés a területet leírja')}
-      ${fld('Mennyiség (' + esc(l.unit || 'egység') + ')', pi('qty', 'például 125'), '', multi ? 'A szerződéses mennyiségből erre a részre eső' : 'Ha üres, a bérlet összes mennyisége számít')}
-      ${fld('Közös terület szorzó (%)', pi('cf', 'például 10'), '', 'Ha nincs közös terület, hagyd üresen')}
-      ${fld('A megadott mennyiség', `<select data-ptf="cfInc"><option value=""></option><option value="nem"${pt.cfInc === 'nem' ? ' selected' : ''}>nettó (a közös terület külön jön hozzá)</option><option value="igen"${pt.cfInc === 'igen' ? ' selected' : ''}>bruttó (már tartalmazza a közös területet)</option></select>`, '', 'Csak közös területnél számít')}
+// ---------- bérlemény kártya: olvasó nézet, szerkesztés lépésekben ----------
+let LEDIT = new Set();   // szerkesztés alatt álló bérlemények
+const nIn = (v) => (v == null || v === '' ? '' : String(v).replace('.', ','));
+function dIn(attr, v, label) { return !v || isIso(v) ? `<input type="date" ${attr} value="${esc(v || '')}" aria-label="${label}">` : `<input type="text" ${attr} value="${esc(v)}" class="badin" aria-label="${label}" title="Régi, nem dátum alakú érték: írd át ÉÉÉÉ-HH-NN formára">`; }
+const STEPS = [[1, 'Alapadatok'], [2, 'Terület'], [3, 'Díjak és indexálás'], [4, 'Fizetés']];
+function stepOf(msg) { if (/indexál|nincs ár|pénznem|egységár|díj|fix összeg/i.test(msg)) return 3; if (/fizetés módja|fizetési határid/i.test(msg)) return 4; if (/mennyiség|terület|helyiség|szorzó|nettó vagy bruttó|alaprajz/i.test(msg)) return 2; if (/módosítás/i.test(msg)) return 0; return 1; }
+const DEFIDX = [{ id: 'KSH', name: 'KSH fogyasztói árindex', cur: 'HUF', kind: 'index', ord: 0 }, { id: 'HICP', name: 'Eurostat HICP (euróövezet)', cur: 'EUR', kind: 'index', ord: 1 }, { id: 'FIX', name: 'Fix %', kind: 'fix', ord: 2 }];
+const ixList = () => (Object.keys(IDX).length ? Object.values(IDX) : DEFIDX).slice().sort((a, b) => (a.ord || 0) - (b.ord || 0) || a.id.localeCompare(b.id));
+const ixOf = (id) => ixList().find((x) => x.id === id);
+function idxTxt(pt) {
+  const x = pt.idx || {}; if (!x.on) return '<span class="hint">nincs megadva</span>'; if (x.on !== 'igen') return 'nincs';
+  const ix = ixOf(x.ix), nx = nextIdx(x), fees = (x.fees || []).map((f) => (FEEN.find((q) => q[0] === f) || [])[1]).filter(Boolean).join(', ');
+  return `${esc(fees || '?')} · ${ix ? esc(ix.name) + (ix.kind === 'fix' && x.pct != null ? ' ' + nfm(x.pct) + '%' : '') : '<span class="hint">index nincs kiválasztva</span>'}${x.m && x.d ? ` · minden év ${x.m}.${String(x.d).padStart(2, '0')}.` : ''}${nx ? ` · következő: <b>${nx}</b>` : ''}`;
+}
+const billTxt = (p) => { const b = ['rent', 'opex', 'cp', 'oth'].filter((f) => p[f] != null).map((f) => `${{ rent: 'bérleti', opex: 'üzem.', cp: 'közös', oth: 'egyéb' }[f]}: ${p[f + 'Bill'] && p[f + 'Bill'] !== '1' ? p[f + 'Bill'] + ' havonta' : 'havonta'}`); const u = new Set(b.map((s) => s.split(': ')[1])); return !b.length ? '' : u.size === 1 ? [...u][0] : b.join(', '); };
+const payTxt = (o) => [o.method, o.pay || o.paycur, o.due != null && o.due !== '' ? `határidő: ${o.due}. nap` : ''].filter(Boolean).join(' · ');
+const updTxt = (o) => (o && o._upd && o._upd.by ? `${esc(String(o._upd.by).split('|')[0])}, ${esc(String(o._upd.at || '').slice(0, 16).replace('T', ' '))}` : '');
+function leaseViewHtml(l, own) {
+  const cur = LEA[l.id] || l, r = RAW[l.id] || l, pts = partsOf(cur), RM = rmap(), m = leaseMonthly(cur);
+  const rooms = [...new Set(pts.flatMap((pt) => pt.rooms || []))].map((id) => { const x = RM[id]; return x ? esc(x.code || x.name) : esc(id); });
+  const area = pts.map((pt) => { const a = areaSplit(cur, pt); return cur.unit === 'm²' && a.net > 0 ? (a.com > 0 ? `nettó ${nfm(a.net)} + közös ${nfm(a.com)} = bruttó ${nfm(a.gross)} m²` : `${nfm(a.gross)} m²`) : ''; }).filter(Boolean).join(' · ');
+  const vs = (r.vers || []).length, rows = [
+    ['Szerződés', cur.c ? esc(cur.c) + (CTR[cur.c] && CTR[cur.c].signed ? ' · aláírva ' + esc(CTR[cur.c].signed) : '') : '<span class="hint">nincs kötve</span>'],
+    ['Használat, állapot', `${esc(cur.use || '–')} · ${esc(cur.status || '–')}`],
+    ['Időtartam', `${esc(cur.start || '?')} → ${esc(cur.end || '?')}${cur.notice ? ' · felmondás: ' + esc(cur.notice) : ''}`],
+    ['Terület', area || (+cur.qty ? nfm(+cur.qty) + ' ' + esc(cur.unit || '') : '<span class="hint">nincs megadva</span>')],
+    ['Helyiségek', rooms.length ? rooms.join(', ') : '<span class="hint">nincs hozzárendelve</span>']];
+  if (!own) rows.push(['Díjak', pts.map((pt) => esc(feeTxt(curP(pt), cur.unit))).filter(Boolean).join(' | ') || '<span class="hint">nincs ár</span>'], ['Havi nettó', monthTxt(m) || '–'], ['Indexálás', pts.map(idxTxt).join(' | ')], ['Fizetés', esc(payTxt(cur)) || '<span class="hint">nincs megadva</span>']);
+  rows.push(['Módosítások', vs ? `${vs} db · ma érvényes: ${esc(vName(r, curK(r)))}` : 'nincs'], ['Megjegyzés', esc(cur.note || '')], ['Utoljára módosította', updTxt(r)]);
+  return `<div class="lview">${rows.filter((x) => x[1]).map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>
+    <div class="lbtns"><button class="pb" data-ledit="${esc(l.id)}">✎ Szerkesztés</button><button class="gb" data-addver="${esc(l.id)}">＋ Módosítás (terület, helyiség, időtartam)</button></div>`;
+}
+function stepHead(n, lab, is) { const k = is.filter((i) => i.lv !== 'info' && stepOf(i.msg) === n).length; return `<h4 class="stp-h" data-stepb="${n}"><span class="no">${n}</span>${lab}<span class="st ${k ? 'warn' : 'ok'}">${k ? '! ' + k : '✓'}</span></h4>`; }
+function areaHtml(l, pt, i, multi) {
+  const pi = (f, ph, cls) => `<input type="text" data-ptf="${f}" value="${esc(nIn(pt[f]))}" placeholder="${ph || ''}"${cls ? ` class="${cls}"` : ''}>`;
+  const cf = +pt.cf || 0, q = +pt.qty || (!multi ? +l.qty || 0 : 0), cm = cf > 0 && q > 0 ? (pt.cfInc === 'igen' ? q - q / (1 + cf / 100) : q * cf / 100) : 0;
+  return `<div class="fgrid">
+      ${multi ? fld('Mennyiség ebből a részből (' + esc(l.unit || 'egység') + ')', pi('qty', 'például 125')) : ''}
+      ${fld('Közös terület szorzó', `<span class="cfrow">${pi('cf', '0')}<b>%</b>${cf > 0 ? `<span class="cfm">= <b>${nfm(cm)}</b> ${esc(l.unit || '')} közös terület</span>` : '<span class="hint">nincs közös terület</span>'}</span>`, '', 'Üres vagy 0 = nincs közös terület')}
+      ${fld('A szerződött mennyiség', `<select data-ptf="cfInc"${cf > 0 ? '' : ' disabled'}${cf > 0 && !pt.cfInc ? ' class="badin"' : ''}><option value=""></option><option value="nem"${pt.cfInc === 'nem' ? ' selected' : ''}>nettó: a közös terület külön jön hozzá</option><option value="igen"${pt.cfInc === 'igen' ? ' selected' : ''}>bruttó: már tartalmazza a közös területet</option></select>`, '', cf > 0 ? 'Mit tartalmaz a szerződésben szereplő m²?' : 'Csak közös terület szorzónál választható')}
     </div>
     <div class="calc" data-split="${i}">${splitHtml(l, pt)}</div>
     ${roomsHtml(l, pt, i)}
-    <details class="adv"${pt.obj ? ' open' : ''}><summary>További beállítások <span class="hint">saját tárgykód${pt.obj ? ' · ' + esc(pt.obj) : ''}</span></summary><div class="fgrid" style="padding:8px 0 2px">
-      ${fld('Tárgykód (nem kötelező)', `<select data-ptf="obj"><option value=""></option>${Object.values(OBJ).sort((a, b) => a.id.localeCompare(b.id)).map((o) => `<option value="${esc(o.id)}"${pt.obj === o.id ? ' selected' : ''}>${esc(o.id)} · ${esc(o.name || '')}</option>`).join('')}</select><button class="gb" data-newobj="${i}" style="justify-self:start">＋ Új tárgy</button>`, 'w2', 'Régi azonosító a korábbi táblázatból. Ha helyiségeket jelölsz ki, nem kell.')}
-    </div><div class="fgrid" data-newobjbox="${i}" hidden></div></details>
-    ${own ? '' : `<div class="hint"><b>Díjak.</b> Minden díjnál választhatsz: egységár (a mennyiséggel szorozva) vagy fix összeg. Egyszerre csak az egyik lehet. Mindegyik saját pénznemmel. Ha a díj változik, ne írd át: nyomd meg az „＋ Új díjidőszak” gombot, a régi megmarad.</div>
+    <details class="adv"><summary>További beállítások <span class="hint">régi tárgykód${pt.obj ? ': ' + esc(pt.obj) : ''}</span></summary><div class="fgrid" style="padding:8px 0 2px">
+      ${fld('Tárgykód (nem kötelező)', `<span class="cfrow"><select data-ptf="obj"><option value=""></option>${Object.values(OBJ).sort((a, b) => a.id.localeCompare(b.id)).map((o) => `<option value="${esc(o.id)}"${pt.obj === o.id ? ' selected' : ''}>${esc(o.id)} · ${esc(o.name || '')}</option>`).join('')}</select>${pt.obj && OBJ[pt.obj] && !Object.values(RAW).some((x) => x.id !== l.id && partsOf(x).some((p2) => p2.obj === pt.obj)) ? `<button class="gb danger" data-delobj="${esc(pt.obj)}" title="Ez a tárgy sehol máshol nincs használva: törölhető">Tárgy törlése</button>` : ''}</span><button class="gb" data-newobj="${i}" style="justify-self:start">＋ Új tárgy</button>`, 'w2', 'Régi azonosító a korábbi táblázatból. Ha helyiségeket jelölsz ki, nem kell.')}
+    </div><div class="fgrid newobj" data-newobjbox="${i}" hidden></div></details>`;
+}
+function feesHtml(l, pt, i) {
+  const ps = pt.periods && pt.periods.length ? pt.periods : [{}], psn = ps.map(np);
+  const amt = (j, f, cur) => { const x = psn[j], fixm = x[f + 'Mode'] === 'fix'; return `<div class="row"><input type="text" data-pdf="${f}" inputmode="decimal" value="${x[f] == null ? '' : String(x[f]).replace('.', ',')}" placeholder="összeg" aria-label="${f}"><select data-pdf="${cur}" aria-label="pénznem">${opts(LISTS.cur, x[cur])}</select><select data-pdf="${f}Mode" aria-label="egységár vagy fix" title="Egységár: a mennyiséggel szorozva. Fix: a megadott összeg, mennyiségtől függetlenül.">${f === 'cp' ? '<option value="">/m² (a közös területre)</option>' : `<option value="">${l.unit === 'db' ? '/db' : l.unit === 'm²' ? '/m²' : 'egységár'}</option>`}<option value="fix"${fixm ? ' selected' : ''}>fix összeg</option></select>${billSel(x, f)}${f === 'rent' && fixm ? `<select data-pdf="gross" aria-label="Nettó vagy bruttó"><option value="">nettó</option><option value="1"${x.gross ? ' selected' : ''}>bruttó</option></select><select data-pdf="freq" aria-label="Gyakoriság"><option value="">havi</option>${LISTS.freq.filter((q) => q !== 'Havi').map((q) => `<option${x.freq === q ? ' selected' : ''}>${q}</option>`).join('')}</select>` : ''}</div>`; };
+  const needCp = +pt.cf > 0 && pt.cfInc === 'nem';
+  const prow = ps.map((x, j) => { const cur = j === ps.length - 1, hasCp = psn[j].cp != null || needCp || !!x.cpOn; return `<div class="per ${cur ? 'cur' : 'old'}" data-pi="${j}">
+    <div class="pg"><span>Érvényes ettől</span><div class="row">${dIn('data-pdf="from"', x.from, 'Érvényes ettől')}${cur ? '<span class="tag">aktuális</span>' : '<span class="tag old">korábbi</span>'}</div></div>
+    <div class="pg"><span>Bérleti díj</span>${amt(j, 'rent', 'rentCur')}</div>
+    <div class="pg"><span>Üzemeltetési díj</span>${amt(j, 'opex', 'opexCur')}</div>
+    ${hasCp ? `<div class="pg"><span>${needCp ? 'Közös terület díja' : 'Közös költség'}</span><div class="row">${amt(j, 'cp', 'cpCur')}${needCp ? '' : `<button class="gb danger" data-delcp="${j}" title="Közös költség törlése">×</button>`}</div></div>` : `<div class="pg"><span>Közös költség</span><button class="gb" data-addcp="${j}" title="Fix vagy m²-alapú közös költség felvétele">＋ közös költség</button></div>`}
+    ${othHtml(x, j)}
+    ${psn[j].xfix != null ? `<div class="pg"><span>Régi fix összeg (ellentmond)</span><div class="row"><b>${nfm(psn[j].xfix)} ${esc(psn[j].xfixCur || '')}</b><button class="gb danger" data-dropfix="${j}">Törlés</button></div></div>` : ''}
+    <div class="pg"><span>Megjegyzés</span><input type="text" class="wide" data-pdf="note" value="${esc(x.note || '')}" placeholder="például: a számla szerint" aria-label="Megjegyzés"></div>
+    <div class="pg"><span>Egyezik a szerződéssel</span><div class="row"><label class="ck"><input type="checkbox" data-pdf="chk" aria-label="Egyezik a szerződéssel"${x.chk ? ' checked' : ''}>${x.chk ? 'ellenőrizve ' + esc(x.chk) : 'még nem ellenőrzött'}</label>${ps.length > 1 ? `<button class="gb danger" data-delper="${j}" title="Ez az ár törlése">×</button>` : ''}</div></div>
+    ${!hasCp && !j ? '' : ''}
+  </div>`; }).join('');
+  return `<div class="feebox">
+    <div class="hint">Díjanként: összeg, pénznem, egységár (/m², /db) vagy fix összeg, és a számlázás gyakorisága.${needCp ? '' : ' Közös terület díja akkor jelenik meg, ha a Terület lépésben közös terület van, és a mennyiség nettó.'}</div>
     <div style="display:grid;gap:8px">${prow}</div>
-    ${idxPartHtml(pt, i)}`}
-    <div>${own ? '' : `<button class="gb" data-addper="${i}">＋ Új díjidőszak</button>`}${multi ? ` <button class="gb danger" data-delpart="${i}">Rész törlése</button>` : ''}</div>
-    <div class="calc" data-calc="${i}"${own ? ' hidden' : ''}>Havi nettó erre a részre (számolt, tájékoztató): ${monthTxt(m)}${m.common ? ` · közös terület ${nfm(m.common)} ${esc(l.unit || '')}` : ''}${m.notes.length ? ` <span class="hint">(${esc(m.notes.join(', '))})</span>` : ''}</div>
-  </div></details>`;
+    <div><button class="gb" data-addper="${i}" title="Árváltozás egy naptól (pl. indexálás): az új ár új sorba kerül, a régi előzményként megmarad">＋ Új ár egy dátumtól</button> <span class="hint">A régi ár előzményként megmarad.</span></div>
+    ${idxPartHtml(pt, i)}
+  </div>`;
 }
 function leaseSumHtml(l) {
-  const parts = partsOf(l), sum = partsSum(l), tot = +l.qty || 0, m = leaseMonthly(l), diff = +(sum - tot).toFixed(2);
-  const st = !tot ? '' : Math.abs(diff) < 0.005 ? '<span style="color:var(--ok)">✓ egyezik a szerződéssel</span>' : diff > 0 ? `<span class="iss bad">túllépés: ${nfm(diff)} ${esc(l.unit || '')}</span>` : `<span class="iss warn">hiányzik: ${nfm(-diff)} ${esc(l.unit || '')}</span>`;
-  const qline = (sum || tot) ? `Részek összege: <b>${nfm(sum)}</b> ${esc(l.unit || '')}${tot ? ` · szerződött: <b>${nfm(tot)}</b>` : ''} ${st}<br>` : '';
+  const sum = partsSum(l), tot = +l.qty || 0, m = leaseMonthly(l), multi = partsOf(l).length > 1, diff = +(sum - tot).toFixed(2);
+  const qline = multi && (sum || tot) ? `Részek összege: <b>${nfm(sum)}</b> ${esc(l.unit || '')}${tot ? ` · szerződött: <b>${nfm(tot)}</b>` : ''} ${!tot ? '' : Math.abs(diff) < 0.005 ? '<span style="color:var(--ok)">✓ egyezik</span>' : `<span class="iss warn">eltérés: ${nfm(diff)}</span>`}<br>` : '';
   if (TEN[l.t] && TEN[l.t].own) return qline || 'Saját használat.';
-  return `${qline}Havi nettó az egész bérletre (számolt): ${monthTxt(m)}${m.common ? ` · közös terület ${nfm(m.common)} ${esc(l.unit || '')}` : ''}${m.notes.length ? ` <span class="hint">(${esc(m.notes.join('; '))})</span>` : ''}`;
+  return `${qline}Havi nettó (számolt, tájékoztató): ${monthTxt(m) || '–'}${m.common ? ` · közös terület ${nfm(m.common)} ${esc(l.unit || '')}` : ''}${m.notes.length ? ` <span class="hint">(${esc(m.notes.join('; '))})</span>` : ''}`;
 }
+function issChip(i, lid) { const m = /\((L\d{3})/.exec(i.msg), id = lid || (m && m[1]); return `<span class="iss ${i.lv}${id ? ' jump' : ''}"${id ? ` data-jump="${esc(id)}|${stepOf(i.msg)}" title="Ugrás a mezőhöz"` : ''}>${esc(i.msg)}</span>`; }
 function leaseHtml(l, cts) {
-  const cur = LEA[l.id] || l;
-  const parts = partsOf(l), is = leaseIssues(l).filter((i) => !(TEN[l.t] && TEN[l.t].own) || !/nincs ár|pénznem/.test(i.msg)), n = is.filter((i) => i.lv !== 'info').length, multi = parts.length > 1, tot = +l.qty || 0, p0 = curP(parts[0] || {});
-  const names = parts.map((pt) => pt.n || (OBJ[pt.obj] || {}).name || pt.obj).filter(Boolean);
-  const li = (f, ph, cls) => `<input type="text" data-lf="${f}" value="${esc(l[f] == null ? '' : l[f])}" placeholder="${ph || ''}"${cls ? ` class="${cls}"` : ''}>`;
-  const dcls = (f) => (l[f] && !dateOk(l[f]) ? 'badin' : '');
-  const cparts = partsOf(cur), sum = `${esc(cur.use || '–')}${+cur.qty ? ' · ' + nfm(+cur.qty) + ' ' + esc(cur.unit || '') : ''}${cparts.length > 1 ? ` · ${cparts.length} rész` : ''}${TEN[l.t] && TEN[l.t].own ? '' : ' · ' + (esc(feeTxt(curP(cparts[0] || {}), cur.unit)) || 'nincs ár')}${(cur.vers || []).length ? ` · ${(cur.vers || []).length} módosítás` : ''}`;
-  return `<details class="lease" data-lid="${esc(l.id)}"><summary><b class="mono">${esc(l.id)}</b> <span>${esc(names.join(' + ') || 'terület nélkül')}</span><span class="hint">${sum}</span><span class="ls"><span class="bdg ${is.some((i) => i.lv === 'bad') ? 'bad' : n ? '' : 'ok'}">${n || '✓'}</span> ${esc(l.status || '')}</span></summary><div class="lb">
-    ${n ? `<div class="tissues">${is.filter((i) => i.lv !== 'info').map((i) => `<span class="iss ${i.lv}">${esc(i.msg)}</span>`).join('')}</div>` : ''}
+  const cur = LEA[l.id] || l, own = !!(TEN[l.t] && TEN[l.t].own), ed = LEDIT.has(l.id) || window.__acrEditAll === true;   // a tesztek mindent szerkesztő nézetben nyitnak
+  const parts = partsOf(l), is = leaseIssues(l).filter((i) => !own || !/nincs ár|pénznem|fizetés|határid|indexál/.test(i.msg)), n = is.filter((i) => i.lv !== 'info').length, multi = parts.length > 1;
+  const names = partsOf(cur).map((pt) => pt.n || (OBJ[pt.obj] || {}).name || pt.obj).filter(Boolean);
+  const li = (f, ph, cls) => `<input type="text" data-lf="${f}" value="${esc(nIn(l[f]))}" placeholder="${ph || ''}"${cls ? ` class="${cls}"` : ''}>`;
+  const cparts = partsOf(cur), sum = `${esc(cur.use || '–')}${+cur.qty ? ' · ' + nfm(+cur.qty) + ' ' + esc(cur.unit || '') : ''}${own ? '' : ' · ' + (esc(feeTxt(curP(cparts[0] || {}), cur.unit)) || 'nincs ár')}${(cur.vers || []).length ? ` · ${(cur.vers || []).length} módosítás` : ''}`;
+  const head = `<summary><b class="mono">${esc(l.id)}</b> <span>${esc(names.join(' + ') || 'terület nélkül')}</span><span class="hint">${sum}</span><span class="ls"><span class="bdg ${is.some((i) => i.lv === 'bad') ? 'bad' : n ? '' : 'ok'}">${n || '✓'}</span> ${esc(l.status || '')}${ed ? ' <span class="tag">szerkesztés</span>' : ''}</span></summary>`;
+  const iss = n ? `<div class="tissues">${is.filter((i) => i.lv !== 'info').map((i) => issChip(i, l.id)).join('')}</div>` : '';
+  if (!ed) return `<details class="lease" data-lid="${esc(l.id)}">${head}<div class="lb">${iss}${leaseViewHtml(l, own)}</div></details>`;
+  const p0 = parts[0] || {};
+  const area = multi ? parts.map((pt, i) => `<div class="subpart" data-parti="${i}"><div class="subh"><b>${i + 1}. rész</b> ${esc(pt.n || '')} <button class="gb danger" data-delpart="${i}">Rész törlése</button></div>${areaHtml(l, pt, i, true)}</div>`).join('') : `<div data-parti="0">${areaHtml(l, p0, 0, false)}</div>`;
+  const fees = own ? '' : multi ? parts.map((pt, i) => `<div class="subpart" data-parti="${i}"><div class="subh"><b>${i + 1}. rész</b> ${esc(pt.n || '')}</div>${feesHtml(l, pt, i)}</div>`).join('') : `<div data-parti="0">${feesHtml(l, p0, 0)}</div>`;
+  return `<details class="lease editing" data-lid="${esc(l.id)}" open>${head}<div class="lb">${iss}
     ${verBarHtml(l, cts)}
-    <div class="fgrid">
+    <section class="stp" data-step="1">${stepHead(1, 'Alapadatok', is)}<div class="fgrid">
+      ${multi ? '' : `<div data-parti="0" class="fld w2" style="display:contents">${fld('Megnevezés a szerződésben', `<input type="text" data-ptf="n" value="${esc(p0.n || '')}" placeholder="például A ép. 2. emelet, bal szárny">`, 'w2', 'Ahogy a szerződés a bérleményt leírja')}</div>`}
       ${fld('Szerződés', `<select data-lf="c"><option value=""></option>${cts.map((c) => `<option value="${esc(c.id)}"${l.c === c.id ? ' selected' : ''}>${esc(c.id)} · ${esc(c.type || 'szerződés')} ${esc(c.signed || '')}</option>`).join('')}</select>`)}
       ${fld('Használat', `<select data-lf="use">${opts(LISTS.use, l.use)}</select>`)}
       ${fld('Státusz', `<select data-lf="status">${opts(LISTS.status, l.status)}</select>`, 'status')}
-      ${fld('Egység', `<select data-lf="unit">${opts(LISTS.unit, l.unit)}</select>`)}
-      ${fld('Szerződéses mennyiség összesen', li('qty', 'például 125'), '', 'Aláíráskor rögzített, nem a mért érték')}
-      ${fld('Kezdés', li('start', 'ÉÉÉÉ-HH-NN', dcls('start')))}
-      ${fld('Vég', `<div class="row" style="display:flex;gap:6px"><select data-lf="endType" aria-label="Határozott vagy határozatlan idejű"><option value="fixed"${l.end === 'határozatlan idejű' ? '' : ' selected'}>határozott idejű, vége:</option><option value="indef"${l.end === 'határozatlan idejű' ? ' selected' : ''}>határozatlan idejű</option></select>${l.end === 'határozatlan idejű' ? '' : `<input type="text" data-lf="end" value="${esc(l.end || '')}" placeholder="ÉÉÉÉ-HH-NN" aria-label="Vég dátuma"${dcls('end') ? ' class="badin"' : ''}>`}</div>`)}
-      ${fld('Fizetés módja (pénznem)', `<select data-lf="pay">${payOpts(l.pay)}</select>`, '', 'Ebben a pénznemben és árfolyamon fizeti ezt a bérletet')}
-      ${fld('Felmondás dátuma', li('notice', 'ÉÉÉÉ-HH-NN', dcls('notice')))}
+      ${fld('Kezdés', dIn('data-lf="start"', l.start, 'Kezdés'))}
+      ${fld('Vég', `<div class="row" style="display:flex;gap:6px"><select data-lf="endType" aria-label="Határozott vagy határozatlan idejű"><option value="fixed"${l.end === 'határozatlan idejű' ? '' : ' selected'}>határozott idejű, vége:</option><option value="indef"${l.end === 'határozatlan idejű' ? ' selected' : ''}>határozatlan idejű</option></select>${l.end === 'határozatlan idejű' ? '' : dIn('data-lf="end"', l.end, 'Vég dátuma')}</div>`, 'w2')}
+      ${fld('Felmondás dátuma', dIn('data-lf="notice"', l.notice, 'Felmondás dátuma'))}
       ${fld('Megjegyzés', li('note', 'például: a szárny pontos felosztása nem ismert'), 'w2')}
-    </div>
-    <div class="hint"><b>Részek${l._k >= 0 ? ' (ebben a verzióban)' : ''}:</b> a szerződés által nevesített területek. Mindegyiknek saját mennyisége, ára és közös terület szorzója lehet.</div>
-    ${parts.map((pt, i) => partHtml(l, pt, i, multi)).join('')}
-    <div><button class="gb" data-addpart="${esc(l.id)}">＋ Rész</button></div>
+    </div></section>
+    <section class="stp" data-step="2">${stepHead(2, 'Terület', is)}<div class="fgrid">
+      ${fld('Egység', `<select data-lf="unit">${opts(LISTS.unit, l.unit)}</select>`)}
+      ${fld('Szerződött mennyiség', li('qty', 'például 125'), '', 'Aláíráskor rögzített, nem a mért érték')}
+    </div>${area}</section>
+    ${own ? '' : `<section class="stp" data-step="3">${stepHead(3, 'Díjak és indexálás', is)}${fees}</section>
+    <section class="stp" data-step="4">${stepHead(4, 'Fizetés', is)}<div class="fgrid">
+      ${fld('Fizetés módja', `<select data-lf="method">${opts(['átutalás', 'készpénz'], l.method)}</select>`)}
+      ${fld('Pénznem és árfolyam', `<select data-lf="pay">${payOpts(l.pay)}</select>`, 'w2')}
+      ${fld('Fizetési határidő', `<span class="cfrow"><input type="text" data-lf="due" inputmode="numeric" value="${esc(l.due == null ? '' : l.due)}" placeholder="5" style="width:70px"><span class="hint">a következő hónap hányadik napja</span></span>`)}
+    </div><div class="hint">A számlázás gyakoriságát díjanként a Díjak lépésben adod meg.</div></section>`}
     <div class="calc" data-lsum="${esc(l.id)}">${leaseSumHtml(l)}</div>
-    <div><button class="gb danger" data-dellease="${esc(l.id)}">Bérlet törlése</button></div>
+    <div class="lbtns"><button class="pb" data-ldone="${esc(l.id)}">✓ Kész</button><span style="flex:1"></span><button class="gb danger" data-dellease="${esc(l.id)}">Bérlemény törlése</button></div>
   </div></details>`;
 }
 const PAYM = ['EUR-ban fizet', 'Ft-ban fizet, aznapi MNB árfolyamon', 'Ft-ban fizet, előző havi árfolyamon', 'Ft-ban fizet, a számla árfolyamán', 'HUF-ban fizet (forint díj)'];
@@ -940,52 +1012,57 @@ function utilIssues(t) {
     if (x.pay !== 'igen') continue;
     if (!x.basis) I.push({ lv: 'warn', msg: `${lab}: nincs megadva az elszámolás alapja` });
     else if (x.basis === 'ismeretlen') I.push({ lv: 'info', msg: `${lab}: az elszámolás alapja ismeretlen` });
-    if (x.basis === 'átalány (fix összeg)') { if (x.amt == null) I.push({ lv: 'warn', msg: `${lab}: átalány, de nincs összeg` }); else if (!x.cur) I.push({ lv: 'bad', msg: `${lab}: az átalány mellett nincs pénznem` }); } }
+    if (x.basis === 'átalány (fix összeg)') { if (x.amt == null) I.push({ lv: 'warn', msg: `${lab}: átalány, de nincs összeg` }); else if (!x.cur) I.push({ lv: 'bad', msg: `${lab}: az átalány mellett nincs pénznem` }); }
+    if (!x.method) I.push({ lv: 'info', msg: `${lab}: nincs megadva a fizetés módja` }); }
   return I;
 }
 function utilHtml(t, pr, vf) {
   const u = t.util || {};
-  const rows = UTILS.map(([k, lab]) => { const x = u[k] || {}, yes = x.pay === 'igen', flat = yes && x.basis === 'átalány (fix összeg)';
-    return `<tr data-uk="${k}"><td><b>${lab}</b></td>
-      <td><select data-uf="pay" aria-label="${lab}: fizet-e">${opts(UPAY, x.pay)}</select></td>
-      <td>${yes ? `<select data-uf="basis" aria-label="${lab}: elszámolás alapja" class="${!x.basis ? 'badin' : ''}">${opts(UBASIS, x.basis)}</select>` : '<span class="hint">–</span>'}</td>
-      <td>${flat ? `<span style="display:flex;gap:4px"><input type="text" data-uf="amt" inputmode="decimal" value="${x.amt == null ? '' : String(x.amt).replace('.', ',')}" placeholder="összeg / hó" aria-label="${lab}: átalány" style="min-width:80px"><select data-uf="cur" aria-label="pénznem" style="min-width:70px">${opts(['HUF', 'EUR'], x.cur)}</select></span>` : '<span class="hint">–</span>'}</td>
-      <td>${yes ? `<select data-uf="paycur" aria-label="${lab}: fizetés módja">${payOpts(x.paycur)}</select>` : '<span class="hint">–</span>'}</td>
-      <td>${yes ? `<select data-uf="bill" aria-label="${lab}: számlázás gyakorisága">${BILLO.map(([v, lb]) => `<option value="${v}"${(x.bill || '') === v ? ' selected' : ''}>${lb}</option>`).join('')}</select>` : '<span class="hint">–</span>'}</td>
-      <td><input type="text" data-uf="note" value="${esc(x.note || '')}" placeholder="például: 2 mérő, a 3. emeleti kör" aria-label="${lab}: megjegyzés"></td></tr>`; }).join('');
-  return `<details class="sec" open><summary>Közművek: áram, fűtés, hűtés ${vf('util', 'Ellenőrizve')}</summary><div class="secb">
-    <div class="hint">Itt csak azt rögzítjük, hogy a bérlő fizet-e, és mi alapján. Az elszámolás (mérőállások, egységárak) nem itt történik.</div>
-    <div class="tw2"><table class="ptab"><thead><tr><th>Közmű</th><th>Fizet érte?</th><th>Elszámolás alapja</th><th>Átalány (csak fix összegnél)</th><th>Fizetés módja (pénznem)</th><th>Számlázás gyakorisága</th><th>Megjegyzés</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="fgrid">
-      ${fld('Közműszámla fizetési határideje (nap)', `<input type="number" min="0" max="90" inputmode="numeric" data-pf="util" value="${esc(pr.util == null ? '' : pr.util)}" placeholder="például 15">`)}
-      ${fld('Fogyasztási Excelt kér a számla mellé', `<select data-pf="excel"><option value=""></option><option value="igen"${pr.excel === true ? ' selected' : ''}>igen</option><option value="nem"${pr.excel === false ? ' selected' : ''}>nem</option></select>`)}
-    </div>${u.src ? `<div class="hint">Forrás: ${esc(u.src)}</div>` : ''}</div></details>`;
+  const rows = UTILS.map(([k, lab]) => { const x = u[k] || {}, yes = x.pay === 'igen', flat = yes && x.basis === 'átalány (fix összeg)', g = (l2, h) => `<div class="pg"><span>${l2}</span>${h}</div>`;
+    return `<div class="per ucard" data-uk="${k}"><div class="pg"><span>Közmű</span><b class="un">${lab}</b></div>
+      ${g('Fizet érte?', `<select data-uf="pay" aria-label="${lab}: fizet-e">${opts(UPAY, x.pay)}</select>`)}
+      ${yes ? g('Elszámolás alapja', `<select data-uf="basis" aria-label="${lab}: elszámolás alapja" class="${!x.basis ? 'badin' : ''}">${opts(UBASIS, x.basis)}</select>`) : ''}
+      ${flat ? g('Átalány havonta', `<div class="row"><input type="text" data-uf="amt" inputmode="decimal" value="${x.amt == null ? '' : String(x.amt).replace('.', ',')}" placeholder="összeg" aria-label="${lab}: átalány"><select data-uf="cur" aria-label="pénznem">${opts(['HUF', 'EUR'], x.cur)}</select></div>`) : ''}
+      ${yes ? g('Fizetés módja', `<select data-uf="method" aria-label="${lab}: fizetés módja">${opts(['átutalás', 'készpénz'], x.method)}</select>`) : ''}
+      ${yes ? g('Pénznem és árfolyam', `<select data-uf="paycur" aria-label="${lab}: pénznem">${payOpts(x.paycur)}</select>`) : ''}
+      ${yes ? g('Határidő (nap)', `<input type="text" data-uf="due" inputmode="numeric" value="${esc(x.due == null ? '' : x.due)}" placeholder="15" aria-label="${lab}: határidő" style="width:60px">`) : ''}
+      ${yes ? g('Számlázás', `<select data-uf="bill" aria-label="${lab}: számlázás gyakorisága">${BILLO.map(([v, lb]) => `<option value="${v}"${(x.bill || '') === v ? ' selected' : ''}>${lb}</option>`).join('')}</select>`) : ''}
+      ${g('Megjegyzés', `<input type="text" class="wide" data-uf="note" value="${esc(x.note || '')}" placeholder="például: 2 mérő" aria-label="${lab}: megjegyzés">`)}</div>`; }).join('');
+  return `<details class="sec" data-secid="util" open><summary>Közművek: áram, fűtés, hűtés ${vf('util', 'Ellenőrizve')}</summary><div class="secb">
+    <div class="hint">Itt rögzítjük, fizet-e a bérlő, mi alapján, és hogyan fizeti. Az elszámolás (mérőállások, egységárak) nem itt történik.</div>
+    <div style="display:grid;gap:8px">${rows}</div>
+    <div class="fgrid">${fld('Fogyasztási Excelt kér a számla mellé', `<select data-pf="excel"><option value=""></option><option value="igen"${pr.excel === true ? ' selected' : ''}>igen</option><option value="nem"${pr.excel === false ? ' selected' : ''}>nem</option></select>`)}</div>
+    ${u.src ? `<div class="hint">Forrás: ${esc(u.src)}</div>` : ''}</div></details>`;
 }
-function paySummary(t, pr) {
-  const L = [];
-  for (const l of leaOf(t.id)) if (l.status !== 'Lejárt') L.push(`Bérlet ${esc(l.id)}: <b>${l.pay ? esc(l.pay) : '<span class="hint">nincs megadva</span>'}</b>`);
-  for (const [k, lab] of UTILS) { const x = (t.util || {})[k]; if (x && x.pay === 'igen') L.push(`${lab}: <b>${x.paycur ? esc(x.paycur) : '<span class="hint">nincs megadva</span>'}</b>`); }
-  if (pr.cur) L.push(`Régi bejegyzés: ${esc(pr.cur)}`);
-  return L.length ? L.join('<br>') : '<span class="hint">Még nincs bérlet vagy közmű felvéve.</span>';
+function profRows(t) {
+  const R = [], miss = '<span class="miss">hiányzik</span>';
+  for (const l of leaOf(t.id)) { if (l.status === 'Lejárt' || l.orphan) continue; const p = curP(partsOf(l)[0] || {});
+    R.push(`<tr><td><b class="mono">${esc(l.id)}</b> ${esc(cutTxt(leaseName(l) || l.use || ''))}</td><td>${l.method ? esc(l.method) : miss}</td><td>${l.pay ? esc(l.pay) : miss}</td><td>${l.due != null && l.due !== '' ? esc(l.due) + '. nap' : l.method === 'készpénz' ? '–' : miss}</td><td>${esc(billTxt(p)) || '–'}</td></tr>`); }
+  for (const [k, lab] of UTILS) { const x = (t.util || {})[k]; if (!x || x.pay !== 'igen') continue;
+    R.push(`<tr><td>${lab}</td><td>${x.method ? esc(x.method) : miss}</td><td>${x.paycur ? esc(x.paycur) : miss}</td><td>${x.due != null && x.due !== '' ? esc(x.due) + '. nap' : '–'}</td><td>${x.bill && x.bill !== '1' ? esc(x.bill) + ' havonta' : 'havonta'}</td></tr>`); }
+  return R.join('');
 }
 function ownOff(t, pr, cts, vf, sel, pin) {
-  return `    <details class="sec" open><summary>Számlázási profil ${vf('prof', 'Ellenőrizve')}</summary><div class="secb"><div class="fgrid">
-      ${fld('Fizetés módja', sel('pay', ['átutalás', 'készpénz', 'vegyes', 'ismeretlen'], pr.pay), !pr.pay && t.prof ? 'warn' : '')}
-      ${fld('Számlázott pénznemek (a bérletekből)', `<input type="text" value="${esc(leaseCurs(t.id).join(' és ') || 'még nincs ár megadva')}" readonly style="background:var(--soft)">`, '', 'A díjaknál soronként adod meg, itt csak összesítve látszik')}
-      ${fld('Elszámolás módja (összesítve)', `<div class="calc">${paySummary(t, pr)}</div>`, 'w2', 'Csak kiírás: a bérleteknél és a közműveknél add meg, itt összegyűlik')}
-      ${fld('Fizetési határidő', pin('due', 'a következő hó… napja', 'number'), !pr.due && pr.pay !== 'készpénz' && t.prof ? 'warn' : '', 'A következő hónap hányadik napja')}
-      ${fld('Kézbesítés', `<div class="chips">${['posta', 'email', 'kézbesítési lista'].map((d) => `<label><input type="checkbox" data-pf="deliver" data-v="${d}"${(pr.deliver || []).includes(d) ? ' checked' : ''}>${d}</label>`).join('')}</div>`)}
-      ${fld('Megjegyzés', pin('note', 'például: készpénz 15-ig, külön megállapodás'), 'w2')}
-    </div>${pr.src ? `<div class="hint">Forrás: ${esc(pr.src)}</div>` : ''}</div></details>
-    <details class="sec" open><summary>Szerződések (${cts.length}) ${vf('ctr', 'Ellenőrizve')}</summary><div class="secb">${ctrHtml(t, cts)}</div></details>
+  const rows = profRows(t), old = [pr.pay, pr.cur, pr.due ? 'határidő ' + pr.due + '. nap' : '', pr.util != null ? 'közmű határidő ' + pr.util + ' nap' : ''].filter(Boolean).join(' · ');
+  return `    <details class="sec" data-secid="prof" open><summary>Számlázási profil ${vf('prof', 'Ellenőrizve')}</summary><div class="secb">
+      <div class="hint">Összesítés: a fizetés módját, a pénznemet, a határidőt és a gyakoriságot a bérleményeknél és a közműveknél adod meg. Itt csak a kézbesítés és a megjegyzés szerkeszthető.</div>
+      ${rows ? `<div class="tw2"><table class="ptab ro"><thead><tr><th>Tétel</th><th>Fizetés módja</th><th>Pénznem és árfolyam</th><th>Határidő</th><th>Számlázás</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="hint">Még nincs bérlemény vagy közmű.</div>'}
+      <div class="fgrid">
+        ${fld('Kézbesítés', `<div class="chips">${['posta', 'email', 'kézbesítési lista'].map((d) => `<label><input type="checkbox" data-pf="deliver" data-v="${d}"${(pr.deliver || []).includes(d) ? ' checked' : ''}>${d}</label>`).join('')}</div>`)}
+        ${fld('Megjegyzés', pin('note', 'például: készpénz 15-ig, külön megállapodás'), 'w2')}
+      </div>
+      ${old ? `<div class="hint">Korábbi, összevont bejegyzés (csak tájékoztató): ${esc(old)}</div>` : ''}${pr.src ? `<div class="hint">Forrás: ${esc(pr.src)}</div>` : ''}</div></details>
+    <details class="sec" data-secid="ctr" open><summary>Szerződések (${cts.length}) ${vf('ctr', 'Ellenőrizve')}</summary><div class="secb">${ctrHtml(t, cts)}</div></details>
     ${utilHtml(t, pr, vf)}`;
 }
+function tenHuf(t) { let e = 0, h = 0; for (const l of leaOf(t.id)) { if (!ACTV.includes(l.status)) continue; const m = leaseMonthly(l); e += m.out.EUR || 0; h += m.out.HUF || 0; } const R = curRate(); return { e, h, tot: R ? h + e * R.v : null }; }
+function tenUpd(t) { const all = [t, ...leaOf(t.id).map((l) => RAW[l.id] || l), ...conOf(t.id), ...conOfT(t.id)].filter((o) => o && o._upd && o._upd.at).sort((a, b) => String(b._upd.at).localeCompare(String(a._upd.at))); return all.length ? updTxt(all[0]) : ''; }
 function tcardHtml(t) {
-  const pr = t.prof || {}, cs = conOf(t.id), ls = leaOf(t.id), cts = conOfT(t.id), u = tenUsage()[t.id] || { n: 0, a: 0 }, chk = t.chk || {};
+  const pr = t.prof || {}, cs = conOf(t.id), ls = leaOf(t.id), cts = conOfT(t.id), chk = t.chk || {};
   const tin = (f, ph) => `<input type="text" data-tf="${f}" value="${esc(t[f] || '')}" placeholder="${ph || ''}">`;
   const pin = (f, ph, type) => `<input type="${type || 'text'}" data-pf="${f}" value="${esc(pr[f] == null ? '' : pr[f])}" placeholder="${ph || ''}"${type === 'number' ? ' min="0" max="90" inputmode="numeric"' : ''}>`;
   const taxCls = !t.tax ? 'bad' : (!isTax(t.tax) && !/^nincs/i.test(t.tax)) ? 'warn' : '', emCls = !t.email ? 'bad' : (!isEmail(t.email) && !(pr.deliver || []).includes('posta')) ? 'warn' : '';
-  const sel = (f, opts, v) => `<select data-pf="${f}"><option value=""></option>${opts.map((o) => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
+  const sel = (f, o2, v) => `<select data-pf="${f}"><option value=""></option>${o2.map((o) => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
   const vf = (key, lab) => `<label class="vf" onclick="event.stopPropagation()"><input type="checkbox" data-chk="${key}"${chk[key] ? ' checked' : ''}> ${lab}${chk[key] ? ' · ' + esc(chk[key]) : ''}</label>`;
   const conRows = cs.map((c) => `<tr data-cid="${esc(c.id)}"><td><input type="text" data-cf="name" value="${esc(c.name || '')}" placeholder="Név" aria-label="Név"><div class="hint">${esc(c.id)}</div></td>
     <td><input type="text" data-cf="phone" value="${esc(fmtPhone(c.phone))}" placeholder="+36 30 123 4567" aria-label="Telefon" class="${c.phone && !isPhone(fmtPhone(c.phone)) ? 'badin' : ''}"></td>
@@ -995,22 +1072,24 @@ function tcardHtml(t) {
     <td><input type="text" data-cf="note" value="${esc(c.note || '')}" placeholder="megjegyzés" aria-label="Megjegyzés"></td>
     <td><button class="gb danger" data-delcon="${esc(c.id)}">Törlés</button></td></tr>`).join('');
   const legacy = !cs.length && (t.cname || t.cphone || t.cemail) ? `<div class="hint">A régi mezőkben: ${esc([t.cname, t.cphone, t.cemail].filter(Boolean).join(' · '))} <button class="gb" data-adopt="${esc(t.id)}">Átvétel kapcsolattartóként</button></div>` : '';
-  return `<div class="th"><input type="text" class="big" data-tf="name" value="${esc(t.name || '')}" aria-label="Bérlő neve"><span class="mono" style="color:var(--mute)">${esc(t.id)}</span>
-      <span class="hint">${u.n ? u.n + ' helyiség · ' + nfm(u.a) + ' m² az alaprajzon' : 'nincs helyiséghez rendelve'}</span><button class="gb danger" data-del="${esc(t.id)}">Törlés</button></div>
+  const act = ls.filter((l) => ACTV.includes(l.status)), m2 = act.reduce((s, l) => s + (l.unit === 'm²' ? +l.qty || 0 : 0), 0), mo = tenHuf(t), todo = issuesOf(t).filter((i) => i.lv !== 'info').length, up = tenUpd(t);
+  const uu = tenUsage()[t.id] || { n: 0, a: 0 }, hsum = [`${ls.length} bérlemény`, m2 ? nfm(m2) + ' m² szerződött' : '', uu.n ? uu.n + ' helyiség · ' + nfm(uu.a) + ' m² az alaprajzon' : '', t.own ? '' : mo.tot != null ? `havi ≈ ${Math.round(mo.tot).toLocaleString('hu-HU')} Ft` : [mo.e ? nfm(mo.e) + ' EUR' : '', mo.h ? nfm(mo.h) + ' Ft' : ''].filter(Boolean).join(' + '), todo ? `<b class="warnt">${todo} teendő</b>` : '<b class="okt">✓ rendben</b>', up ? 'utoljára: ' + up : ''].filter(Boolean).join(' · ');
+  return `<div class="th"><input type="text" class="big" data-tf="name" value="${esc(t.name || '')}" aria-label="Bérlő neve"><span class="mono" style="color:var(--mute)">${esc(t.id)}</span><button class="gb danger" data-del="${esc(t.id)}">Bérlő törlése</button></div>
+    <div class="tsum" id="tsum">${hsum}</div>
     <div class="tissues" id="tissues">${issuesHtml(t)}</div>
-    <details class="sec" open><summary>Alapadatok ${vf('base', 'Ellenőrizve')}</summary><div class="secb"><div class="fgrid">
+    <details class="sec" data-secid="base" open><summary>Alapadatok ${vf('base', 'Ellenőrizve')}</summary><div class="secb"><div class="fgrid">
       ${fld('Adószám', tin('tax', '12345678-1-23'), taxCls, taxCls === 'warn' ? 'Formátum: 12345678-1-23. Magánszemélynél: nincs adószám' : '')}
       ${fld('Számlázási email', tin('email', 'szamla@ceg.hu'), emCls, emCls === 'warn' ? 'Ez nem email cím' : '')}
       ${fld('Számlázási cím', tin('addr', 'irányítószám, város, utca'), 'w2' + (!t.addr ? ' bad' : ''))}
       ${fld('Megjegyzés', `<input type="text" data-tf="note" value="${esc(t.note || '')}" placeholder="például: magánszemély, adószámot kérni">`, 'w2')}
       ${fld('Saját használat', `<label style="display:flex;gap:6px;align-items:center;font-size:13.5px;text-transform:none;letter-spacing:0;color:var(--fg)"><input type="checkbox" data-own="1"${t.own ? ' checked' : ''}> Saját cég, nincs számlázás</label>`, 'w2', 'Bejelölve a számlázási profil, a szerződések és a díjak nem kellenek, és nem is jelennek meg')}
     </div></div></details>
-    <details class="sec" open><summary>Kapcsolattartók (${cs.length}) ${vf('con', 'Ellenőrizve')}</summary><div class="secb">${legacy}
+    <details class="sec" data-secid="con" open><summary>Kapcsolattartók (${cs.length}) ${vf('con', 'Ellenőrizve')}</summary><div class="secb">${legacy}
       ${cs.length ? `<div class="tw2"><table class="ctab"><thead><tr><th>Név</th><th>Telefon</th><th>Email</th><th>Szerep</th><th>Elsődleges</th><th>Megjegyzés</th><th></th></tr></thead><tbody>${conRows}</tbody></table></div>` : '<div class="hint">Még nincs kapcsolattartó.</div>'}
       <div><button class="gb" data-addcon="${esc(t.id)}">＋ Kapcsolattartó</button></div></div></details>
     ${t.own ? '<div class="hint" style="padding:2px 4px">Saját használat: számlázási profil, szerződés és díj nincs. A területeket alább vagy az alaprajzon jelölheted.</div>' : ownOff(t, pr, cts, vf, sel, pin)}
-    <details class="sec" open><summary>${t.own ? 'Saját használatú területek' : 'Bérletek'} (${ls.length})</summary><div class="secb">${ls.map((l) => leaseHtml(LV(l.id), cts)).join('') || '<div class="hint">Még nincs bérlet.</div>'}
-      <div><button class="gb" data-addlease="${esc(t.id)}">${t.own ? '＋ Terület' : '＋ Bérlet'}</button></div></div></details>`;
+    <details class="sec" data-secid="lea" open><summary>${t.own ? 'Saját használatú területek' : 'Bérlemények'} (${ls.length})</summary><div class="secb">${ls.map((l) => leaseHtml(LV(l.id), cts)).join('') || '<div class="hint">Még nincs bérlemény.</div>'}
+      <div><button class="gb" data-addlease="${esc(t.id)}">${t.own ? '＋ Terület' : '＋ Bérlemény'}</button></div></div></details>`;
 }
 function initGuide() { const g = $('tguide'); if (!g || g.dataset.init) return; g.dataset.init = '1'; let seen = false; try { seen = localStorage.getItem('acrAdm.guide') === '1'; } catch (e) { } g.open = !seen; g.addEventListener('toggle', () => { try { localStorage.setItem('acrAdm.guide', '1'); } catch (e) { } }); }
 const dKey = (d) => (d.closest('[data-lid]') ? d.closest('[data-lid]').dataset.lid : '') + '|' + (d.dataset.parti != null ? 'p' + d.dataset.parti : d.closest('[data-parti]') ? 'p' + d.closest('[data-parti]').dataset.parti : '') + '|' + (d.classList.contains('adv') ? 'adv' : d.classList.contains('sec') ? 's' + [...d.parentElement.children].indexOf(d) : '');
@@ -1023,7 +1102,7 @@ function renderTenants() {
   $('tcard').dataset.t = t ? t.id : '';
   if (t && keepT === t.id) document.querySelectorAll('#tcard details').forEach((d) => { const k = dKey(d); if (keep.has(k)) d.open = keep.get(k); });
 }
-function refreshTenantMeta() { const t = TEN[S.tsel]; if (!t) return; const tl = $('tlist'), sc = tl.scrollTop; tl.innerHTML = tlistHtml(); tl.scrollTop = sc; const e = $('tissues'); if (e) e.innerHTML = issuesHtml(t); }
+function refreshTenantMeta() { const t = TEN[S.tsel]; if (!t) return; const tl = $('tlist'), sc = tl.scrollTop; tl.innerHTML = tlistHtml(); tl.scrollTop = sc; const e = $('tissues'); if (e) e.innerHTML = issuesHtml(t); const s = $('tsum'); if (s) { const tmp = document.createElement('div'); tmp.innerHTML = tcardHtml(t); const n2 = tmp.querySelector('#tsum'); if (n2) s.innerHTML = n2.innerHTML; } }
 const nextId = (pre, objs) => pre + String(Math.max(0, ...Object.keys(objs).map((k) => parseInt(k.slice(1)) || 0)) + 1).padStart(3, '0');
 function saveContact(c) { CON[c.id] = c; if (DB) DB.doc('contacts/' + c.id).set(c).catch(dbErr); }
 // ---- bérlet-verziók: az eredeti feltételek + módosítások (mindegyik a teljes feltételrendszert tárolja az érvényesség kezdetétől)
@@ -1074,6 +1153,65 @@ function migrateIdx() {   // a régi, szerződésszintű indexálás átkerül a
     for (const r0 of ls) { const r = r0.parts && r0.parts.length ? JSON.parse(JSON.stringify(r0)) : normLease(r0); delete r._k; r.parts.forEach(mk); for (const v of r.vers || []) ((v.snap || {}).parts || []).forEach(mk); putRaw(r); }
     const c2 = Object.assign({}, c); for (const k of ['idx', 'idxm', 'idxd', 'idxn']) delete c2[k]; saveCtr(c2); }
 }
+// ---------- Árfolyam és infláció fül ----------
+let IDX = {}, META = null, MIG2 = false;
+function saveIdx(o) { IDX[o.id] = o; if (DB) DB.doc('indices/' + o.id).set(o).catch(dbErr); }
+function ixUsed(id) { return Object.values(RAW).some((r) => [r, ...(r.vers || []).map((v) => v.snap || {})].some((x) => partsOf(x).some((pt) => pt.idx && pt.idx.ix === id))); }
+function renderRates() {
+  if (!$('r-date').value) $('r-date').value = today();
+  const ds = rateDates().slice().reverse();
+  $('rt-list').innerHTML = ds.length ? `<table class="ptab ro"><thead><tr><th>Dátum</th><th class="num">Ft / EUR</th><th></th></tr></thead><tbody>${ds.map((d) => `<tr><td>${d}</td><td class="num mono">${nfm(+RATES[d].eur)}</td><td><button class="gb danger" data-delrate="${d}">Törlés</button></td></tr>`).join('')}</tbody></table>` : '<div class="hint">Még nincs árfolyam.</div>';
+  const L = ixList(), yr = +today().slice(0, 4);
+  $('ix-list').innerHTML = L.map((x) => { const ys = Object.keys(x.vals || {}).sort(), used = ixUsed(x.id);
+    return `<div class="per ixcard" data-ix="${esc(x.id)}">
+      <div class="pg"><span>Név</span><input type="text" class="wide" data-ixf="name" value="${esc(x.name || '')}" aria-label="Index neve"></div>
+      <div class="pg"><span>Típus</span><select data-ixf="kind" aria-label="Típus"><option value="index"${x.kind !== 'fix' ? ' selected' : ''}>éves index (évente más %)</option><option value="fix"${x.kind === 'fix' ? ' selected' : ''}>fix % (a bérleménynél adod meg)</option></select></div>
+      <div class="pg"><span>Pénznem</span><select data-ixf="cur" aria-label="Pénznem">${opts(['HUF', 'EUR'], x.cur)}</select></div>
+      ${x.kind === 'fix' ? '<div class="pg"><span>Értékek</span><span class="hint">A % a bérleménynél adható meg.</span></div>' : `<div class="pg"><span>Éves értékek (%)</span><div class="row ixv">${ys.map((y) => `<label>${y}<input type="text" data-ixv="${y}" inputmode="decimal" value="${esc(nIn(x.vals[y]))}" aria-label="${y}" style="width:64px"></label>`).join('')}<button class="gb" data-ixaddy="${esc(x.id)}">＋ év</button></div></div>`}
+      <div class="pg"><span>&nbsp;</span>${used ? '<span class="hint">használatban, nem törölhető</span>' : `<button class="gb danger" data-ixdel="${esc(x.id)}">Törlés</button>`}</div></div>`; }).join('') + `<div><button class="gb" data-ixadd="1">＋ Új index</button> <span class="hint">${Object.keys(IDX).length ? '' : 'Az alapértelmezett 3 index az első módosításkor mentődik.'}</span></div>`;
+  void yr;
+}
+function ixEnsure() { if (!Object.keys(IDX).length) DEFIDX.forEach((x, i) => saveIdx(Object.assign({ ord: i, vals: {} }, x))); }
+// ---------- Határidők fül ----------
+function dueEvents() {
+  const td = today(), E = [], dd = (d) => Math.round((new Date(d) - new Date(td)) / 864e5);
+  for (const l of Object.values(LEA)) { const T = TEN[l.t]; if (!T || l.orphan || !['Szerződött', 'Bérlet', 'Kilépő', 'Tárgyalásban'].includes(l.status)) continue;
+    partsOf(l).forEach((pt) => { const nx = nextIdx(pt.idx); if (nx) E.push({ d: nx, t: T, l, ev: 'Indexálás', det: idxTxt(pt).replace(/<[^>]+>/g, '') }); });
+    if (isIso(l.end)) E.push({ d: l.end, t: T, l, ev: 'A bérlemény lejár', det: '' });
+    if (isIso(l.notice)) E.push({ d: l.notice, t: T, l, ev: 'Felmondás', det: '' });
+    const r = RAW[l.id]; for (const { v, i } of vList(r || {})) if (v.from && isIso(v.from) && v.from > td) E.push({ d: v.from, t: T, l, ev: 'Módosítás életbe lép', det: vName(r, i) + (v.note ? ': ' + v.note : '') }); }
+  return E.map((e) => Object.assign(e, { n: dd(e.d) })).sort((a, b) => a.d.localeCompare(b.d));
+}
+function renderDue() {
+  const lim = +($('du-win').value || 90), E = dueEvents().filter((e) => e.n >= -30 && e.n <= lim);
+  $('du-rows').innerHTML = E.length ? E.map((e) => `<tr class="jumprow${e.n < 0 ? ' past' : e.n <= 30 ? ' soon' : ''}" data-dujump="${esc(e.t.id)}|${esc(e.l.id)}"><td class="mono">${e.d}</td><td class="num">${e.n < 0 ? Math.abs(e.n) + ' napja' : e.n === 0 ? 'ma' : e.n + ' nap'}</td><td>${esc(e.t.name)}</td><td><span class="mono">${esc(e.l.id)}</span> ${esc(cutTxt(leaseName(e.l) || e.l.use || ''))}</td><td><b>${esc(e.ev)}</b> <span class="hint">${esc(e.det)}</span></td></tr>`).join('') : `<tr><td colspan="5" class="empty">A következő ${lim} napban nincs esemény.</td></tr>`;
+}
+// ---------- egyszeri adat-átalakítás (v2): biztonsági mentés az adatbázisba, aztán átrendezés ----------
+function partFilled(pt) { return !!(pt.n || pt.obj || pt.qty != null || (pt.rooms || []).length || pt.idx || (pt.periods || []).some((p) => Object.keys(p).some((k) => !['from', 'cpMode', 'rentMode', 'opexMode'].includes(k) && p[k] != null && p[k] !== ''))); }
+function migrateV2() {
+  if (MIG2 || !DB || !CANW || !['leases', 'tenants', 'contracts', 'meta', 'indices'].every((c) => LOADED[c]) || (META && META.v >= 2)) return;
+  MIG2 = true;
+  const dump = JSON.parse(JSON.stringify({ format: 'acr-admin-1', exported: new Date().toISOString(), reason: 'automatikus mentés a v2 átalakítás előtt', rooms: OV, alloc: ALLOC, tenants: TEN, contacts: CON, contracts: CTR, leases: RAW, objects: OBJ, rates: RATES }));
+  Promise.resolve(DB.doc('backups/pre-v2-' + new Date().toISOString().replace(/[:.]/g, '-')).set(dump)).then(() => {
+    const ids = Object.assign({}, RAW); let nSplit = 0, nDrop = 0;
+    for (const r0 of Object.values(RAW).slice()) { if (r0.orphan) continue; const T = TEN[r0.t] || {}, pr = T.prof || {}; const r = JSON.parse(JSON.stringify(r0)); let ch = false;
+      if (r.parts && r.parts.length > 1) { let keep = r.parts.filter(partFilled); if (!keep.length) keep = [r.parts[0]]; nDrop += r.parts.length - keep.length;
+        if (keep.length !== r.parts.length || keep.length > 1) { ch = true; r.parts = [keep[0]];
+          if (keep.length > 1) { if (keep[0].qty != null) r.qty = keep[0].qty;
+            for (const pt of keep.slice(1)) { const id = nextId('L', ids), nl = { id, src: 'szétbontva ' + r.id + '-ból (v2)' }; ids[id] = nl; nSplit++;
+              for (const k of ['t', 'c', 'status', 'use', 'unit', 'start', 'end', 'notice', 'pay', 'method', 'due', 'legacy']) if (r[k] != null) nl[k] = r[k];
+              if (pt.qty != null) nl.qty = pt.qty; nl.parts = [pt]; nl.note = 'Szétbontva a(z) ' + r.id + ' bérleményből'; putRaw(nl); } } } }
+      if (!T.own && !r.method && ['átutalás', 'készpénz'].includes(pr.pay)) { r.method = pr.pay; ch = true; }
+      if (!T.own && r.due == null && pr.due != null && pr.due !== '' && pr.pay !== 'készpénz') { r.due = String(pr.due); ch = true; }
+      if (ch) putRaw(r); }
+    for (const T of Object.values(TEN)) { const pr = T.prof || {}, u = JSON.parse(JSON.stringify(T.util || {})); let ch = false;
+      for (const [k] of UTILS) { const x = u[k]; if (!x || x.pay !== 'igen') continue; if (!x.method && ['átutalás', 'készpénz'].includes(pr.pay)) { x.method = pr.pay; ch = true; } if (x.due == null && pr.util != null && pr.util !== '') { x.due = String(pr.util); ch = true; } }
+      if (ch) saveTenant(Object.assign({}, T, { util: u })); }
+    ixEnsure();
+    META = { v: 2, at: new Date().toISOString(), split: nSplit, dropped: nDrop }; DB.doc('meta/schema').set(META).catch(dbErr);
+    toast(`Az adatok átalakítása kész. Előtte automatikus mentés készült.${nSplit ? ' ' + nSplit + ' bérlemény szétbontva.' : ''}${nDrop ? ' ' + nDrop + ' üres rész törölve.' : ''}`); renderAll();
+  }).catch((e) => { MIG2 = false; dbErr(e); });
+}
 function saveCtr(c) { CTR[c.id] = c; if (DB) DB.doc('contracts/' + c.id).set(c).catch(dbErr); }
 function reopen(lid) { renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; }
 function refreshLease(id) {   // csak az összegző sorok, a számolt sorok és a teendők frissülnek (a fókusz megmarad)
@@ -1084,7 +1222,8 @@ function refreshLease(id) {   // csak az összegző sorok, a számolt sorok és 
   nd.querySelectorAll(':scope > .lb > details.part > summary').forEach((s, i) => { const o = d.querySelectorAll(':scope > .lb > details.part > summary')[i]; if (o) o.innerHTML = s.innerHTML; });
   nd.querySelectorAll('[data-split]').forEach((c) => { const o = d.querySelector(`[data-split="${c.dataset.split}"]`); if (o) o.innerHTML = c.innerHTML; });
   nd.querySelectorAll('[data-cmp]').forEach((c) => { const o = d.querySelector(`[data-cmp="${c.dataset.cmp}"]`); if (o) o.innerHTML = c.innerHTML; });
-  const ls = d.querySelector('[data-lsum]'); if (ls) ls.innerHTML = nd.querySelector('[data-lsum]').innerHTML;
+  const ls = d.querySelector('[data-lsum]'), nls = nd.querySelector('[data-lsum]'); if (ls && nls) ls.innerHTML = nls.innerHTML;
+  nd.querySelectorAll('[data-stepb]').forEach((c) => { const o = d.querySelector(`[data-stepb="${c.dataset.stepb}"]`); if (o) o.innerHTML = c.innerHTML; });
   const old = d.querySelector(':scope > .lb > .tissues'), ni = nd.querySelector(':scope > .lb > .tissues'); if (old && !ni) old.remove(); else if (old && ni) old.innerHTML = ni.innerHTML; else if (ni) d.querySelector(':scope > .lb').prepend(ni);
   refreshTenantMeta();
 }
@@ -1102,7 +1241,8 @@ function tcardChange(el) {
     const r = JSON.parse(JSON.stringify(RAW[lid])); if (v) r.vers[k][f] = v; else delete r.vers[k][f]; putRaw(r); reopen(lid); return; }
   else if (el.dataset.lf) { const l = normLease(LV(el.closest('[data-lid]').dataset.lid)), f = el.dataset.lf, v = el.value.trim();
     if (f === 'endType') { if (el.value === 'indef') l.end = 'határozatlan idejű'; else if (l.end === 'határozatlan idejű') delete l.end; saveLease(l); reopen(l.id); return; }
-    if (f === 'qty') { if (v === '') delete l.qty; else { const n = numIn(v); if (n === undefined) { toast('Csak nemnegatív szám adható meg.'); el.value = l.qty == null ? '' : l.qty; return; } l.qty = n; } }
+    if (f === 'qty') { if (v === '') delete l.qty; else { const n = numIn(v); if (n === undefined) { toast('Csak nemnegatív szám adható meg.'); el.value = l.qty == null ? '' : nIn(l.qty); return; } l.qty = n; } if (l.parts && l.parts.length === 1) { if (l.qty == null) delete l.parts[0].qty; else l.parts[0].qty = l.qty; } }
+    else if (f === 'due') { if (v === '') delete l.due; else { const n = parseInt(v, 10); if (!(n >= 0 && n <= 90) || String(n) !== v) { toast('A határidő 0 és 90 közötti egész szám (a hónap napja).'); el.value = l.due == null ? '' : l.due; return; } l.due = String(n); } }
     else if (v) l[f] = v; else delete l[f];
     if (f === 'use' && v === 'Parkoló' && l.unit !== 'db') { l.unit = 'db'; saveLease(l); toast('Parkolónál az egység darab: átállítottam.'); reopen(l.id); return; }
     saveLease(l); if (f === 'unit') { reopen(l.id); return; } refreshLease(l.id); return; }
@@ -1118,8 +1258,8 @@ function tcardChange(el) {
     saveLease(l); if (f === 'cf' || f === 'cfInc') { reopen(l.id); return; } refreshLease(l.id); return; }
   else if (el.dataset.pxf || el.dataset.pxfee) { const lid = el.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), pt = l.parts[+el.closest('[data-parti]').dataset.parti], x = Object.assign({}, pt.idx || {});
     if (el.dataset.pxfee) { const s = new Set(x.fees || []); el.checked ? s.add(el.dataset.pxfee) : s.delete(el.dataset.pxfee); x.fees = FEEN.map((f) => f[0]).filter((f) => s.has(f)); }
-    else { const f = el.dataset.pxf, v = el.value.trim(); if (v) x[f] = v; else delete x[f];
-      if (f === 'on') { if (v !== 'igen') { for (const k of ['fees', 'm', 'd', 'n']) delete x[k]; } else if (!(x.fees || []).length) { const p = curP(pt); x.fees = FEEN.map((q) => q[0]).filter((q) => p[q] != null); if (!x.fees.length) x.fees = ['rent']; } } }
+    else { const f = el.dataset.pxf, v = el.value.trim(); if (f === 'pct') { if (v === '') delete x.pct; else { const n = numIn(v); if (n === undefined || n > 50) { toast('Százalék, például 3'); return; } x.pct = n; } } else if (v) x[f] = v; else delete x[f];
+      if (f === 'on') { if (v !== 'igen') { for (const k of ['fees', 'm', 'd', 'n', 'ix', 'pct']) delete x[k]; } else if (!(x.fees || []).length) { const p = curP(pt); x.fees = FEEN.map((q) => q[0]).filter((q) => p[q] != null); if (!x.fees.length) x.fees = ['rent']; } } }
     if (Object.keys(x).length) pt.idx = x; else delete pt.idx; saveLease(l); reopen(lid); return; }
   else if (el.dataset.pdf) { const l = normLease(LV(el.closest('[data-lid]').dataset.lid)), pt = l.parts[+el.closest('[data-parti]').dataset.parti], i = +el.closest('[data-pi]').dataset.pi, x = pt.periods[i], f = el.dataset.pdf;
     if (['rent', 'opex', 'fix', 'cp', 'oth'].includes(f)) { if (el.value.trim() === '') delete x[f]; else { const n = numIn(el.value); if (n === undefined) { toast('Csak nemnegatív szám adható meg.'); el.value = x[f] == null ? '' : String(x[f]).replace('.', ','); return; } x[f] = n; } }
@@ -1129,10 +1269,11 @@ function tcardChange(el) {
     else { const v = el.value.trim(); if (v) x[f] = v; else delete x[f]; }
     saveLease(l); refreshLease(l.id); return; }
   else if (el.dataset.ctf) { const c = Object.assign({}, CTR[el.closest('tr').dataset.ctid]), v = el.value.trim(); if (v) c[el.dataset.ctf] = v; else delete c[el.dataset.ctf]; if (el.dataset.ctf === 'idx' && v !== 'igen') { delete c.idxm; delete c.idxd; delete c.idxn; saveCtr(c); renderTenants(); return; } if (el.dataset.ctf === 'idx') { saveCtr(c); renderTenants(); return; } if (el.dataset.ctf === 'type' && c.type !== 'Módosítás') delete c.base; if (el.dataset.ctf === 'type' && c.type === 'Szóbeli megállapodás') c.form = 'Szóbeli'; saveCtr(c); if (el.dataset.ctf === 'type') { renderTenants(); return; } }
-  else if (el.dataset.uf) { const k = el.closest('tr').dataset.uk, f = el.dataset.uf, u = JSON.parse(JSON.stringify(t.util || {})), x = u[k] = u[k] || {};
-    if (f === 'amt') { if (el.value.trim() === '') delete x.amt; else { const n = numIn(el.value); if (n === undefined) { toast('Csak nemnegatív szám adható meg.'); el.value = x.amt == null ? '' : x.amt; return; } x.amt = n; } }
+  else if (el.dataset.uf) { const k = el.closest('[data-uk]').dataset.uk, f = el.dataset.uf, u = JSON.parse(JSON.stringify(t.util || {})), x = u[k] = u[k] || {};
+    if (f === 'due') { const v = el.value.trim(), n = parseInt(v, 10); if (v === '') delete x.due; else if (!(n >= 0 && n <= 90) || String(n) !== v) { toast('A határidő 0 és 90 közötti egész szám.'); el.value = x.due == null ? '' : x.due; return; } else x.due = String(n); }
+    else if (f === 'amt') { if (el.value.trim() === '') delete x.amt; else { const n = numIn(el.value); if (n === undefined) { toast('Csak nemnegatív szám adható meg.'); el.value = x.amt == null ? '' : x.amt; return; } x.amt = n; } }
     else { const v = el.value.trim(); if (v) x[f] = v; else delete x[f]; }
-    if (x.pay !== 'igen') { delete x.basis; delete x.amt; delete x.cur; delete x.paycur; delete x.bill; } else if (x.basis !== 'átalány (fix összeg)') { delete x.amt; delete x.cur; }
+    if (x.pay !== 'igen') { delete x.basis; delete x.amt; delete x.cur; delete x.paycur; delete x.bill; delete x.method; delete x.due; } else if (x.basis !== 'átalány (fix összeg)') { delete x.amt; delete x.cur; }
     if (!Object.keys(x).length) delete u[k]; t.util = u; saveTenant(t); if (f === 'pay' || f === 'basis') { renderTenants(); return; } }
   else if (el.dataset.own) { if (el.checked) t.own = true; else delete t.own; saveTenant(t); renderTenants(); return; }
   else if (el.dataset.chk) { const c = Object.assign({}, t.chk || {}); if (el.checked) c[el.dataset.chk] = today(); else delete c[el.dataset.chk]; t.chk = c; saveTenant(t); renderTenants(); return; }
@@ -1300,8 +1441,8 @@ function setBuilding(id) {
 function showTab(k) {
   if (S.park && k === 'plan') k = 'ov';
   S.tab = k;
-  for (const [t, id] of [['ov', 'v-ov'], ['plan', 'v-plan'], ['ten', 'v-ten'], ['rep', 'v-rep']]) { $(id).classList.toggle('hidden', t !== k); $('tab-' + t).setAttribute('aria-selected', t === k); }
-  if (k === 'ten') renderTenants(); else if (k === 'ov') renderOverview(); else if (k === 'rep') renderReport(); else fitAgain();
+  for (const [t, id] of [['ov', 'v-ov'], ['plan', 'v-plan'], ['ten', 'v-ten'], ['rep', 'v-rep'], ['due', 'v-due'], ['rates', 'v-rates']]) { $(id).classList.toggle('hidden', t !== k); $('tab-' + t).setAttribute('aria-selected', t === k); }
+  if (k === 'ten') renderTenants(); else if (k === 'ov') renderOverview(); else if (k === 'rep') renderReport(); else if (k === 'due') renderDue(); else if (k === 'rates') renderRates(); else fitAgain();
 }
 function openPlan(k, w, roomId) {
   const lv = LVL.find((l) => l[0] === k); S.floor = lv[2]; S.wing = w || '*'; S.status = '*'; S.tenant = '*'; S.q = ''; S.all = false;
@@ -1311,7 +1452,7 @@ function openPlan(k, w, roomId) {
 function renderAll() {
   const ae = document.activeElement;
   if (ae && ae.matches && ae.matches('#rows input, #tcard input, #tcard select, #ovrows input') && ae === document.activeElement) { pending = true; return; }
-  pending = false; tenantFilterOptions(); renderList(); paintDrawn(); paintPlaced(); planNote(); paintTags(); if (S.tab === 'ten') renderTenants(); if (S.tab === 'ov') renderOverview(); if (S.tab === 'rep') renderReport();
+  pending = false; tenantFilterOptions(); renderList(); paintDrawn(); paintPlaced(); planNote(); paintTags(); if (S.tab === 'ten') renderTenants(); if (S.tab === 'ov') renderOverview(); if (S.tab === 'rep') renderReport(); if (S.tab === 'due') renderDue(); if (S.tab === 'rates') renderRates();
 }
 
 // ---------- mentés ----------
@@ -1367,7 +1508,6 @@ function reportRows() {
 function repAgg(rs) { const o = { net: 0, com: 0, gross: 0, m2: 0, plan: 0, hasPlan: false, c: { rent: { e: 0, h: 0 }, opex: { e: 0, h: 0 }, common: { e: 0, h: 0 }, park: { e: 0, h: 0 }, other: { e: 0, h: 0 } }, e: 0, h: 0, ae: 0, ah: 0, pm2: 0 };
   for (const r of rs) { o.net += r.ar.net; o.com += r.ar.com; o.gross += r.ar.gross; o.m2 += r.m2; if (r.plan != null) { o.plan += r.plan; o.hasPlan = true; } for (const k of Object.keys(o.c)) { o.c[k].e += r.c[k].e; o.c[k].h += r.c[k].h; } o.e += r.e; o.h += r.h; if (r.m2) { o.ae += r.ae; o.ah += r.ah; o.pm2 += r.m2; } } return o; }
 function renderReport() {
-  if (!$('r-date').value) $('r-date').value = today();
   const { rows, notes, R } = reportRows(), k = RV.cur === 'EUR' ? 'e' : 'h', ds = rateDates();
   $('r-rate').innerHTML = ds.length ? ds.slice().reverse().map((d) => `<option value="${d}"${R && R.d === d ? ' selected' : ''}>${d}: ${nfm(+RATES[d].eur)}</option>`).join('') : '<option value="">nincs megadva</option>';
   document.querySelectorAll('#r-view button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.rv === RV.view)); document.querySelectorAll('#r-cur button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.rc === RV.cur)); $('r-neg').checked = RV.neg;
@@ -1423,7 +1563,7 @@ function tblTenants(fm) {
   const use = {}; for (const r of ALLR) { const o = OV[r.id]; if (o && o.t && !isOld(r) && (eff(r) === 'rented' || eff(r) === 'own')) { const u = use[o.t] = use[o.t] || { n: 0, a: 0 }; u.n++; u.a += ar(r); } }
   for (const A of Object.values(ALLOC)) if (A.on) for (const it of A.items || []) if (it.t) { const u = use[it.t] = use[it.t] || { n: 0, a: 0 }; u.n++; u.a += +it.a || 0; }
   const rows = [['ID', 'Név', 'Adószám', 'Számlázási cím', 'Számlázási email', 'Kapcsolattartó', 'Telefon', 'Kapcsolattartó email', 'Megjegyzés', 'Területek száma', 'm²', 'Áram', 'Fűtés', 'Hűtés', 'Közmű határidő (nap)']];
-  for (const q of sortedTen()) { const u = use[q.id] || { n: 0, a: 0 }; const pc = conOf(q.id).find((c) => c.primary) || conOf(q.id)[0] || {}; rows.push([q.id, q.name, q.tax, q.addr, q.email, pc.name || q.cname, pc.phone || q.cphone, pc.email || q.cemail, q.note, u.n || '', u.n ? fm(u.a) : '', ...UTILS.map(([k]) => { const x = (q.util || {})[k] || {}; return x.pay === 'igen' ? (x.basis || 'igen') + (x.amt != null ? ' ' + x.amt + ' ' + (x.cur || '') : '') : x.pay || ''; }), (q.prof || {}).util == null ? '' : (q.prof || {}).util]); }
+  for (const q of sortedTen()) { const u = use[q.id] || { n: 0, a: 0 }; const pc = conOf(q.id).find((c) => c.primary) || conOf(q.id)[0] || {}; rows.push([q.id, q.name, q.tax, q.addr, q.email, pc.name || q.cname, pc.phone || q.cphone, pc.email || q.cemail, q.note, u.n || '', u.n ? fm(u.a) : '', ...UTILS.map(([k]) => { const x = (q.util || {})[k] || {}; return x.pay === 'igen' ? (x.basis || 'igen') + (x.amt != null ? ' ' + x.amt + ' ' + (x.cur || '') : '') : x.pay || ''; }), ((q.util || {}).el || {}).due != null ? q.util.el.due : (q.prof || {}).util == null ? '' : (q.prof || {}).util]); }
   return rows;
 }
 function tblSummary(fm) {
@@ -1447,7 +1587,7 @@ function buildXlsx() {
 function doExport(kind) {
   const day = new Date().toISOString().slice(0, 10), csv = (n, rows) => saveFile(`ACR_${n}_${day}.csv`, toCsv(rows), 'text/csv;charset=utf-8');
   if (kind === 'xlsx') { try { return saveBlob(`ACR_admin_${day}.xlsx`, new Blob([buildXlsx()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); } catch (e) { toast('Az Excel-fájl nem készíthető el: ' + e.message); return; } }
-  if (kind === 'json') return saveFile(`ACR_admin_mentes_${day}.json`, JSON.stringify({ format: 'acr-admin-1', exported: new Date().toISOString(), rooms: OV, alloc: ALLOC, tenants: TEN, contacts: CON, contracts: CTR, leases: RAW, objects: OBJ, rates: RATES }, null, 1), 'application/json');
+  if (kind === 'json') return saveFile(`ACR_admin_mentes_${day}.json`, JSON.stringify({ format: 'acr-admin-1', exported: new Date().toISOString(), rooms: OV, alloc: ALLOC, tenants: TEN, contacts: CON, contracts: CTR, leases: RAW, objects: OBJ, rates: RATES, indices: IDX }, null, 1), 'application/json');
   if (kind === 'rooms') return csv('helyisegek', tblRooms(num));
   if (kind === 'summary') return csv('osszesito', tblSummary(num));
   if (kind === 'alloc') return csv('kiosztasok', tblAlloc(num));
@@ -1495,12 +1635,24 @@ document.addEventListener('click', (e) => {
   if (t.id === 'lay-btn') { const m = $('lay-menu'); m.classList.toggle('open'); $('lay-btn').setAttribute('aria-expanded', m.classList.contains('open')); return; }
   if (!t.closest('#lay-menu')) { $('lay-menu').classList.remove('open'); }
   if (t.id === 'z-in') zoom(0.8); if (t.id === 'z-out') zoom(1.25); if (t.id === 'z-fit') { FIT = fitBox(); setVB(FIT); }
+  const led = t.closest('[data-ledit]'); if (led) { LEDIT.add(led.dataset.ledit); reopen(led.dataset.ledit); return; }
+  const ldn = t.closest('[data-ldone]'); if (ldn) { LEDIT.delete(ldn.dataset.ldone); delete VSEL[ldn.dataset.ldone]; reopen(ldn.dataset.ldone); return; }
+  const jp = t.closest('[data-jump]'); if (jp) { const [lid, st] = jp.dataset.jump.split('|'); LEDIT.add(lid); reopen(lid); setTimeout(() => { const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (!d) return; const s = +st ? d.querySelector(`[data-step="${st}"]`) : d.querySelector('.vbar'); const tg = s || d; tg.scrollIntoView({ behavior: 'smooth', block: 'start' }); tg.classList.add('flash'); setTimeout(() => tg.classList.remove('flash'), 1600); const f = tg.querySelector('.badin, .fld.bad input, .fld.bad select'); if (f) f.focus({ preventScroll: true }); }, 30); return; }
+  const js = t.closest('[data-jumpsec]'); if (js) { const s = document.querySelector(`#tcard details[data-secid="${js.dataset.jumpsec}"]`); if (s) { s.open = true; s.scrollIntoView({ behavior: 'smooth', block: 'start' }); s.classList.add('flash'); setTimeout(() => s.classList.remove('flash'), 1600); } return; }
+  const dj = t.closest('[data-dujump]'); if (dj) { const [tid, lid] = dj.dataset.dujump.split('|'); S.tsel = tid; showTab('ten'); setTimeout(() => { const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); d.classList.add('flash'); setTimeout(() => d.classList.remove('flash'), 1600); } }, 30); return; }
+  const noc = t.closest('[data-newobjcancel]'); if (noc) { const box = noc.closest('[data-newobjbox]'); box.hidden = true; box.innerHTML = ''; return; }
+  const dob = t.closest('[data-delobj]'); if (dob) { if (dob.dataset.arm !== '1') { dob.dataset.arm = '1'; dob.textContent = 'Biztos?'; setTimeout(() => { if (dob.isConnected) { dob.dataset.arm = ''; dob.textContent = 'Tárgy törlése'; } }, 3000); return; }
+    const lid = dob.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), id = dob.dataset.delobj; for (const pt of l.parts) if (pt.obj === id) { delete pt.obj; delete pt.objName; } saveLease(l); delete OBJ[id]; if (DB) DB.doc('objects/' + id).delete().catch(dbErr); reopen(lid); toast('Tárgy törölve.'); return; }
+  const drt = t.closest('[data-delrate]'); if (drt) { if (drt.dataset.arm !== '1') { drt.dataset.arm = '1'; drt.textContent = 'Biztos?'; setTimeout(() => { if (drt.isConnected) { drt.dataset.arm = ''; drt.textContent = 'Törlés'; } }, 3000); return; } const d = drt.dataset.delrate; delete RATES[d]; if (RV.rate === d) RV.rate = null; if (DB) DB.doc('rates/' + d).delete().catch(dbErr); renderRates(); return; }
+  const ixa = t.closest('[data-ixadd]'); if (ixa) { ixEnsure(); let n = 1; while (IDX['IX' + n]) n++; saveIdx({ id: 'IX' + n, name: 'Új index', kind: 'index', ord: 10 + n, vals: {} }); renderRates(); return; }
+  const ixd = t.closest('[data-ixdel]'); if (ixd) { if (ixd.dataset.arm !== '1') { ixd.dataset.arm = '1'; ixd.textContent = 'Biztos?'; setTimeout(() => { if (ixd.isConnected) { ixd.dataset.arm = ''; ixd.textContent = 'Törlés'; } }, 3000); return; } ixEnsure(); const id = ixd.dataset.ixdel; delete IDX[id]; if (DB) DB.doc('indices/' + id).delete().catch(dbErr); renderRates(); return; }
+  const ixy = t.closest('[data-ixaddy]'); if (ixy) { ixEnsure(); const o = JSON.parse(JSON.stringify(IDX[ixy.dataset.ixaddy] || ixOf(ixy.dataset.ixaddy))); o.vals = o.vals || {}; const ys = Object.keys(o.vals).map(Number); const y = ys.length ? Math.max(...ys) + 1 : +today().slice(0, 4) - 1; o.vals[y] = null; saveIdx(o); renderRates(); return; }
   const vs = t.closest('[data-vsel]'); if (vs) { const lid = vs.closest('[data-lid]').dataset.lid, k = +vs.dataset.vsel, r = RAW[lid]; if (r) { if (k === curK(r)) delete VSEL[lid]; else VSEL[lid] = k; } reopen(lid); return; }
   const av = t.closest('[data-addver]'); if (av) { const lid = av.dataset.addver, r = JSON.parse(JSON.stringify(RAW[lid] || LEA[lid])), base = normLease(LV(lid)), snap = {}; for (const f of TERM) if (base[f] !== undefined) snap[f] = base[f];
-    r.vers = r.vers || []; r.vers.push({ from: today(), snap }); putRaw(r); VSEL[lid] = r.vers.length - 1; reopen(lid); toast('Új módosítás létrehozva a ma érvényes feltételekből. Állítsd be, mikortól érvényes, és írd át, ami változott.'); return; }
+    r.vers = r.vers || []; r.vers.push({ from: today(), snap }); putRaw(r); VSEL[lid] = r.vers.length - 1; LEDIT.add(lid); reopen(lid); toast('Új módosítás létrehozva a ma érvényes feltételekből. Állítsd be, mikortól érvényes, és írd át, ami változott.'); return; }
   const dv = t.closest('[data-delver]'); if (dv) { if (dv.dataset.arm !== '1') { dv.dataset.arm = '1'; dv.textContent = 'Biztos?'; setTimeout(() => { if (dv.isConnected) { dv.dataset.arm = ''; dv.textContent = 'Ez a módosítás törlése'; } }, 3000); return; }
     const lid = dv.closest('[data-lid]').dataset.lid, r = JSON.parse(JSON.stringify(RAW[lid])); r.vers.splice(+dv.dataset.delver, 1); delete VSEL[lid]; putRaw(r); reopen(lid); return; }
-  const al = t.closest('[data-addlease]'); if (al) { const id = nextId('L', LEA); saveLease({ id, t: al.dataset.addlease, status: 'Tárgyalásban', unit: 'm²', parts: [{ periods: [{ from: today() }] }], src: 'admin oldal' }); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${id}"]`); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } return; }
+  const al = t.closest('[data-addlease]'); if (al) { const id = nextId('L', LEA); LEDIT.add(id); saveLease({ id, t: al.dataset.addlease, status: 'Tárgyalásban', unit: 'm²', parts: [{ periods: [{ from: today() }] }], src: 'admin oldal' }); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${id}"]`); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } return; }
   const rpk = t.closest('[data-roompick]'); if (rpk) { const lid = rpk.closest('[data-lid]').dataset.lid, i = +rpk.dataset.roompick;
     if (PICK && PICK.lid === lid && PICK.i === i) PICK = null; else { const l = LV(lid), pt = partsOf(l)[i], first = rmap()[(pt.rooms || [])[0]]; PICK = { lid, i, b: first ? first.b : BLD, fl: '*', w: '*', q: '' }; }
     renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
@@ -1510,7 +1662,8 @@ document.addEventListener('click', (e) => {
     toast(n ? `${n} helyiség jelölése átírva: ${tName(l.t)}` : 'A helyiségek jelölése már egyezik.'); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
   const aoth = t.closest('[data-addoth]'); if (aoth) { const lid = aoth.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), x = l.parts[+aoth.closest('[data-parti]').dataset.parti].periods[+aoth.dataset.addoth]; x.othCur = 'HUF'; saveLease(l); reopen(lid); return; }
   const doth = t.closest('[data-delothr]'); if (doth) { const lid = doth.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), x = l.parts[+doth.closest('[data-parti]').dataset.parti].periods[+doth.dataset.delothr]; for (const k of ['oth', 'othCur', 'othPay', 'othN', 'othBill']) delete x[k]; saveLease(l); reopen(lid); return; }
-  const acp = t.closest('[data-addcp]'); if (acp) { const lid = acp.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), x = l.parts[+acp.closest('[data-parti]').dataset.parti].periods[+acp.dataset.addcp]; x.cpMode = 'fix'; saveLease(l); reopen(lid); return; }
+  const acp = t.closest('[data-addcp]'); if (acp) { const lid = acp.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), x = l.parts[+acp.closest('[data-parti]').dataset.parti].periods[+acp.dataset.addcp]; x.cpMode = 'fix'; x.cpOn = 1; saveLease(l); reopen(lid); return; }
+  const dcp = t.closest('[data-delcp]'); if (dcp) { const lid = dcp.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), x = l.parts[+dcp.closest('[data-parti]').dataset.parti].periods[+dcp.dataset.delcp]; for (const k of ['cp', 'cpCur', 'cpMode', 'cpOn', 'cpBill']) delete x[k]; saveLease(l); reopen(lid); return; }
   const dfx = t.closest('[data-dropfix]'); if (dfx) { const lid = dfx.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), x = l.parts[+dfx.closest('[data-parti]').dataset.parti].periods[+dfx.dataset.dropfix]; delete x.fix; delete x.fixCur; saveLease(l); reopen(lid); return; }
   const apt = t.closest('[data-addpart]'); if (apt) { const l = normLease(LV(apt.dataset.addpart)); l.parts.push({ periods: [{ from: today() }] }); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${l.id}"]`); if (d) d.open = true; return; }
   const dpt = t.closest('[data-delpart]'); if (dpt) { if (dpt.dataset.arm !== '1') { dpt.dataset.arm = '1'; dpt.textContent = 'Biztos?'; setTimeout(() => { if (dpt.isConnected) { dpt.dataset.arm = ''; dpt.textContent = 'Rész törlése'; } }, 3000); return; } const lid = dpt.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)); l.parts.splice(+dpt.dataset.delpart, 1); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
@@ -1520,14 +1673,14 @@ document.addEventListener('click', (e) => {
   const ac2 = t.closest('[data-addctr]'); if (ac2) { const id = nextId('C', CTR); saveCtr({ id, t: ac2.dataset.addctr, src: 'admin oldal' }); renderTenants(); return; }
   const dc2 = t.closest('[data-delctr]'); if (dc2) { const id = dc2.dataset.delctr, used = Object.values(LEA).filter((l) => l.c === id).length; if (used) { toast(`Nem törölhető: ${used} bérlet hivatkozik rá.`); return; } if (dc2.dataset.arm !== '1') { dc2.dataset.arm = '1'; dc2.textContent = 'Biztos?'; setTimeout(() => { if (dc2.isConnected) { dc2.dataset.arm = ''; dc2.textContent = 'Törlés'; } }, 3000); return; } delete CTR[id]; if (DB) DB.doc('contracts/' + id).delete().catch(dbErr); renderTenants(); return; }
   const la = t.closest('[data-linkall]'); if (la) { for (const l of leaOf(S.tsel)) if (!l.c) saveLease(Object.assign({}, l, { c: la.dataset.linkall })); renderTenants(); return; }
-  const no = t.closest('[data-newobj]'); if (no) { const lid = no.closest('[data-lid]').dataset.lid, box = no.closest('[data-parti]').querySelector(`[data-newobjbox="${no.dataset.newobj}"]`); box.hidden = !box.hidden; if (!box.innerHTML) box.innerHTML = `<label class="fld"><span>Tárgy kódja</span><input type="text" data-no="id" placeholder="például B-WOLT-3"></label><label class="fld"><span>Típus</span><select data-no="type">${opts(LISTS.otype, '', true)}</select></label><label class="fld"><span>Épület</span><select data-no="bld">${opts(LISTS.bld, '', true)}</select></label><label class="fld w2"><span>Megnevezés</span><input type="text" data-no="name" placeholder="például B épület, hátsó raktár"></label><button class="pb" data-saveobj="${esc(no.dataset.newobj)}" data-slid="${esc(lid)}">Tárgy mentése</button>`; return; }
-  const so = t.closest('[data-saveobj]'); if (so) { const box = so.parentElement, g = (k) => box.querySelector(`[data-no="${k}"]`).value.trim(), id = g('id'); if (!id || !/^[A-Za-z0-9ÁÉÍÓÖŐÚÜŰáéíóöőúüű_-]+$/.test(id)) { toast('A tárgy kódja kötelező, szóköz nélkül (betű, szám, kötőjel).'); return; } if (OBJ[id]) { toast('Ez a tárgykód már létezik.'); return; } if (!g('name')) { toast('Adj meg megnevezést.'); return; }
+  const no = t.closest('[data-newobj]'); if (no) { const lid = no.closest('[data-lid]').dataset.lid, box = no.closest('[data-parti]').querySelector(`[data-newobjbox="${no.dataset.newobj}"]`); box.hidden = false; if (!box.innerHTML) box.innerHTML = `<label class="fld"><span>Tárgy kódja</span><input type="text" data-no="id" placeholder="például B-WOLT-3"></label><label class="fld"><span>Típus</span><select data-no="type">${opts(LISTS.otype, '', true)}</select></label><label class="fld"><span>Épület</span><select data-no="bld">${opts(LISTS.bld, '', true)}</select></label><label class="fld w2"><span>Megnevezés</span><input type="text" data-no="name" placeholder="például B épület, hátsó raktár"></label><span style="display:flex;gap:6px;align-items:end"><button class="pb" data-saveobj="${esc(no.dataset.newobj)}" data-slid="${esc(lid)}">Tárgy mentése</button><button class="gb" data-newobjcancel="1">Mégse</button></span>`; return; }
+  const so = t.closest('[data-saveobj]'); if (so) { const box = so.closest('[data-newobjbox]'), g = (k) => box.querySelector(`[data-no="${k}"]`).value.trim(), id = g('id'); if (!id || !/^[A-Za-z0-9ÁÉÍÓÖŐÚÜŰáéíóöőúüű_-]+$/.test(id)) { toast('A tárgy kódja kötelező, szóköz nélkül (betű, szám, kötőjel).'); return; } if (OBJ[id]) { toast('Ez a tárgykód már létezik.'); return; } if (!g('name')) { toast('Adj meg megnevezést.'); return; }
     const o = { id, name: g('name'), type: g('type') || undefined, bld: g('bld') || undefined, src: 'admin oldal' }; for (const k of Object.keys(o)) if (o[k] === undefined) delete o[k]; OBJ[id] = o; if (DB) DB.doc('objects/' + id).set(o).catch(dbErr);
     const l = normLease(LV(so.dataset.slid)), pt = l.parts[+so.dataset.saveobj]; pt.obj = id; pt.objName = o.name; if (!pt.n) pt.n = o.name; saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${l.id}"]`); if (d) d.open = true; return; }
   const rv = t.closest('[data-rv]'); if (rv) { RV.view = rv.dataset.rv; renderReport(); return; }
   const rc = t.closest('[data-rc]'); if (rc) { RV.cur = rc.dataset.rc; renderReport(); return; }
   if (t.id === 'r-save') { const d = $('r-date').value, v = numIn($('r-val').value); if (!isIso(d)) { toast('Adj meg dátumot.'); return; } if (d > today()) { toast('Jövőbeli dátumra nem vehető fel árfolyam.'); return; } if (!(v >= 200 && v <= 700)) { toast('Az árfolyam nem hihető: 200 és 700 Ft közötti értéket adj meg.'); return; }
-    RATES[d] = { eur: v }; RV.rate = d; if (DB) DB.doc('rates/' + d).set({ eur: v }).catch(dbErr); $('r-val').value = ''; renderReport(); toast(`Árfolyam mentve: ${d}, ${nfm(v)} Ft/EUR`); return; }
+    RATES[d] = { eur: v }; RV.rate = d; if (DB) DB.doc('rates/' + d).set({ eur: v }).catch(dbErr); $('r-val').value = ''; renderRates(); toast(`Árfolyam mentve: ${d}, ${nfm(v)} Ft/EUR`); return; }
   const tsel = t.closest('[data-tsel]'); if (tsel) { S.tsel = tsel.dataset.tsel; PICK = null; renderTenants(); return; }
   if (t.id === 't-add') { const id = nextId('T', TEN); saveTenant({ id, name: 'Új bérlő', tax: '', addr: '', email: '', note: '' }); S.tsel = id; $('t-q').value = ''; $('t-todo').checked = false; renderTenants(); tenantFilterOptions(); const nm = document.querySelector('#tcard input.big'); if (nm) { nm.focus(); nm.select(); } toast('Új bérlő felvéve: ' + id); return; }
   const ac = t.closest('[data-addcon]'); if (ac) { const id = nextId('K', CON), first = !conOf(ac.dataset.addcon).length; saveContact({ id, t: ac.dataset.addcon, name: '', roles: ['kapcsolattartó'], ...(first ? { primary: true } : {}) }); renderTenants(); const r = document.querySelector(`#tcard tr[data-cid="${id}"] input`); if (r) r.focus(); return; }
@@ -1546,6 +1699,11 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('change', (e) => {
   const el = e.target, tr = el.closest && el.closest('#rows tr.room');
+  if (el.dataset && (el.dataset.ixf || el.dataset.ixv)) { ixEnsure(); const id = el.closest('[data-ix]').dataset.ix, o = JSON.parse(JSON.stringify(IDX[id] || ixOf(id) || { id }));
+    if (el.dataset.ixv) { const s = el.value.trim().replace(/\s/g, '').replace(',', '.'), n = parseFloat(s); o.vals = o.vals || {}; if (s === '') delete o.vals[el.dataset.ixv]; else if (!isFinite(n) || Math.abs(n) > 100) { toast('Százalék, például 4,5 vagy -0,3'); return; } else o.vals[el.dataset.ixv] = n; }
+    else { const v = el.value.trim(); if (v) o[el.dataset.ixf] = v; else delete o[el.dataset.ixf]; }
+    saveIdx(o); if (el.dataset.ixf === 'kind') renderRates(); return; }
+  if (el.id === 'du-win') { renderDue(); return; }
   if (el.dataset && el.dataset.bs != null && el.dataset.bs !== undefined && el.matches('select[data-bs]')) { const b = BULK[el.dataset.bs] = BULK[el.dataset.bs] || { s: '-', t: '' }; b.s = el.value; if (b.s !== 'rented' && b.s !== 'own') b.t = ''; renderOverview(); return; }
   if (el.matches && el.matches('select[data-bt]')) { const b = BULK[el.dataset.bt] = BULK[el.dataset.bt] || { s: '-', t: '' }; b.t = el.value; return; }
   if (el.dataset && el.dataset.al) { const [k, w] = el.dataset.aid.split('|'), A = Object.assign({ on: false, measure: 'falkozep', items: [], rem: 'none' }, ALLOC[aidOf(k, w)]); A.items = (A.items || []).map((i) => Object.assign({}, i)); const f = el.dataset.al, i = +el.dataset.i;
@@ -1757,10 +1915,12 @@ buildFilters(); buildLayerMenu(); legend(); buildPlan(); renderList(); renderOve
   $('dbnote').textContent = CANW ? 'adatbázis: csatlakozva, a módosítások azonnal mentődnek' : 'csak olvasható nézet';
   const to = setTimeout(() => { if (!dbOk) { $('dbnote').textContent = 'az adatbázis nem válaszol'; $('dbnote').className = 'bad'; } }, 10000);
   DB.collection('rooms').onSnapshot((snap) => { dbOk = true; clearTimeout(to); OV = {}; snap.docs.forEach((d) => { OV[d.id] = d.data(); }); syncDrawn(); renderAll(); }, (e) => { $('dbnote').textContent = 'adatbázis hiba: ' + (e && e.message || e.code); $('dbnote').className = 'bad'; });
-  DB.collection('rates').onSnapshot((snap) => { RATES = {}; snap.docs.forEach((d) => { RATES[d.id] = d.data(); }); if (S.tab === 'rep') renderReport(); }, () => { });
+  DB.collection('rates').onSnapshot((snap) => { RATES = {}; snap.docs.forEach((d) => { RATES[d.id] = d.data(); }); if (S.tab === 'rep') renderReport(); if (S.tab === 'rates') renderRates(); }, () => { });
   DB.collection('alloc').onSnapshot((snap) => { dbOk = true; clearTimeout(to); ALLOC = {}; snap.docs.forEach((d) => { ALLOC[d.id] = d.data(); }); renderAll(); }, () => { });
-  for (const [col, tgt] of [['contacts', CON], ['leases', LEA], ['objects', OBJ], ['contracts', CTR]]) DB.collection(col).onSnapshot((snap) => { dbOk = true; const o = {}; snap.docs.forEach((d) => { o[d.id] = Object.assign({ id: d.id }, d.data()); }); LOADED[col] = true; if (col === 'contacts') CON = o; else if (col === 'leases') { RAW = o; LEA = {}; for (const [id, r] of Object.entries(o)) LEA[id] = viewOf(r, curK(r)); } else if (col === 'objects') OBJ = o; else CTR = o; migrateIdx(); renderAll(); }, () => { });
-  DB.collection('tenants').onSnapshot((snap) => { dbOk = true; clearTimeout(to); TEN = {}; snap.docs.forEach((d) => { TEN[d.id] = Object.assign({ id: d.id }, d.data()); }); renderAll(); }, () => { });
+  for (const [col, tgt] of [['contacts', CON], ['leases', LEA], ['objects', OBJ], ['contracts', CTR]]) DB.collection(col).onSnapshot((snap) => { dbOk = true; const o = {}; snap.docs.forEach((d) => { o[d.id] = Object.assign({ id: d.id }, d.data()); }); LOADED[col] = true; if (col === 'contacts') CON = o; else if (col === 'leases') { RAW = o; LEA = {}; for (const [id, r] of Object.entries(o)) LEA[id] = viewOf(r, curK(r)); } else if (col === 'objects') OBJ = o; else CTR = o; migrateIdx(); migrateV2(); renderAll(); }, () => { });
+  DB.collection('meta').onSnapshot((snap) => { LOADED.meta = true; const d = snap.docs.find((x) => x.id === 'schema'); META = d ? d.data() : null; migrateV2(); }, () => { });
+  DB.collection('indices').onSnapshot((snap) => { LOADED.indices = true; IDX = {}; snap.docs.forEach((d) => { IDX[d.id] = Object.assign({ id: d.id }, d.data()); }); migrateV2(); if (S.tab === 'rates') renderRates(); }, () => { });
+  DB.collection('tenants').onSnapshot((snap) => { dbOk = true; clearTimeout(to); LOADED.tenants = true; TEN = {}; snap.docs.forEach((d) => { TEN[d.id] = Object.assign({ id: d.id }, d.data()); }); migrateV2(); renderAll(); }, () => { });
 })();
 </script>
 
