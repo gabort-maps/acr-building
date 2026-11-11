@@ -202,6 +202,9 @@ select, input[type=text], input[type=search] { background:var(--panel); border:1
 .ltab { width:100%; border-collapse:collapse; font-size:13px; } .ltab th { position:static; } .ltab td, .ltab th { padding:4px 6px; border-top:1px solid var(--soft); text-align:left; vertical-align:top; }
 .ctab input.badin { border-color:#dc2626; background:#fef2f2; } .lease { border:1px solid var(--line); border-radius:7px; } .lease > summary { cursor:pointer; padding:6px 10px; display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; list-style:none; } .lease > summary::-webkit-details-marker { display:none; }
 .lease > summary::before { content:'▸'; color:var(--mute); } .lease[open] > summary::before { content:'▾'; }
+.vbar { border:1px solid var(--line); border-radius:8px; padding:8px 10px; display:grid; gap:8px; background:var(--panel); } .vchips { display:flex; flex-wrap:wrap; gap:6px; }
+.vchip { border:1px solid var(--inbd); background:var(--btn1); color:var(--fg); border-radius:8px; padding:5px 10px; cursor:pointer; font:inherit; font-size:13px; display:inline-flex; gap:6px; align-items:center; } .vchip.on { border:2px solid var(--acc); background:var(--btn2); } .vchip i { font-style:normal; font-size:11.5px; color:var(--mute); } .vchip i.now { color:var(--ok); font-weight:600; }
+.vwarn { background:var(--warnbg); color:#78350f; border:1px solid #f1c76a; border-radius:6px; padding:6px 10px; font-size:13px; } .vmeta { padding:2px 0; }
 .lease .lb { padding:4px 10px 10px; display:grid; gap:10px; } .lease .ls { font-size:12.5px; color:var(--mute); margin-left:auto; }
 .ptab { width:100%; border-collapse:collapse; font-size:13px; } .ptab th { position:static; font-size:10.5px; } .ptab td, .ptab th { padding:3px 4px; vertical-align:top; } .ptab input, .ptab select { width:100%; min-width:70px; box-sizing:border-box; background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:4px; padding:3px 5px; font:inherit; }
 .ptab input.badin { border-color:#dc2626; background:#fef2f2; } .ptab tr.cur td { background:var(--soft); }
@@ -733,6 +736,7 @@ function leaseIssues(l) {
   if (l.status === 'Kilépő' && !l.notice && !isIso(l.end)) add('warn', `${L}: kilépő bérlő, de nincs felmondás vagy vég dátum`);
   if (isIso(l.notice) && isIso(l.start) && l.notice < l.start) add('bad', `${L}: a felmondás dátuma a kezdés előtt van`);
   if (l.status === 'Tárgyalásban' && isIso(l.start) && l.start < today() && parts.some((pt) => curP(pt).rent != null)) add('info', `${L}: a kezdés elmúlt, a státusz még Tárgyalásban`);
+  verIssues(l, (lv, msg) => add(lv, `${L}: ${msg}`));
   { const c = CTR[l.c]; if (l.c && !c) add('warn', `${L}: a hozzákötött szerződés (${l.c}) nem létezik`); else if (c && c.t !== l.t) add('bad', `${L}: a hozzákötött szerződés más bérlőé`); }
   return I;
 }
@@ -751,7 +755,7 @@ function issuesOf(t) {
   { const ACT = ['Szerződött', 'Bérlet', 'Kilépő'], objs = (x) => partsOf(x).map((pt) => pt.obj).filter(Boolean);
     for (const l of ls.filter((x) => x.use !== 'Parkoló' && ACT.includes(x.status))) for (const ob of objs(l)) { const o = Object.values(LEA).find((x) => x.id !== l.id && x.use !== 'Parkoló' && ACT.includes(x.status) && objs(x).includes(ob)); if (o) { add('warn', `${leaseLbl(l)}: ugyanez a terület (${ob}) más bérleten is aktív: ${tName(o.t)} (${o.id})`); break; } } }
   { const cs2 = conOfT(t.id), nolink = ls.filter((l) => !l.c).length; if (ls.length && !cs2.length) add('info', 'Nincs szerződés felvéve'); else if (nolink) add('info', `${nolink} bérlet nincs szerződéshez kötve`);
-    for (const c of cs2) { if (!c.type) add('info', `${c.id}: a szerződés típusa nincs megadva`); if (c.type === 'Szóbeli megállapodás' && c.form === 'Írásbeli') add('warn', `${c.id}: szóbeli megállapodás, de a forma írásbeli`); if (c.billing === 'Nincs számla / készpénz' && pr.pay === 'átutalás') add('warn', `${c.id}: a szerződésnél nincs számla / készpénz, a profilban a fizetés módja átutalás`); if (c.base && CTR[c.base] && isIso(c.signed) && isIso(CTR[c.base].signed) && c.signed < CTR[c.base].signed) add('warn', `${c.id}: a módosítás korábbi, mint az eredeti szerződés`); if (c.type === 'Módosítás' && !c.base) add('warn', `${c.id}: módosítás, de nincs megadva, melyik szerződést módosítja`); if (c.signed && !dateOk(c.signed)) add('warn', `${c.id}: az aláírás dátuma legyen ÉÉÉÉ-HH-NN`); } }
+    for (const c of cs2) { if (!c.idx) add('info', `${c.id}: nincs megadva, hogy van-e évenkénti indexálás`); else if (c.idx === 'igen' && (!c.idxm || !c.idxd)) add('warn', `${c.id}: évenkénti indexálás van, de nincs megadva a dátuma`); if (!c.type) add('info', `${c.id}: a szerződés típusa nincs megadva`); if (c.type === 'Szóbeli megállapodás' && c.form === 'Írásbeli') add('warn', `${c.id}: szóbeli megállapodás, de a forma írásbeli`); if (c.billing === 'Nincs számla / készpénz' && pr.pay === 'átutalás') add('warn', `${c.id}: a szerződésnél nincs számla / készpénz, a profilban a fizetés módja átutalás`); if (c.base && CTR[c.base] && isIso(c.signed) && isIso(CTR[c.base].signed) && c.signed < CTR[c.base].signed) add('warn', `${c.id}: a módosítás korábbi, mint az eredeti szerződés`); if (c.type === 'Módosítás' && !c.base) add('warn', `${c.id}: módosítás, de nincs megadva, melyik szerződést módosítja`); if (c.signed && !dateOk(c.signed)) add('warn', `${c.id}: az aláírás dátuma legyen ÉÉÉÉ-HH-NN`); } }
   I.push(...utilIssues(t));
   if (!(t.chk && t.chk.base)) add('info', 'Az alapadatok nincsenek ellenőrizve');
   if (t.own) return I.filter((i) => !/profil|[Ff]izetés|fizet-e|elszámolás|átalány|nincs ár|pénznem|szerződés|Nincs bérlet|adószám|email|kapcsolattartó/i.test(i.msg));
@@ -786,7 +790,10 @@ function ctrHtml(t, cts) {
     <td><select data-ctf="billing" aria-label="Számlázás módja">${opts(LISTS.cbill, c.billing)}</select></td>
     <td><input type="text" data-ctf="doc" value="${esc(c.doc || '')}" placeholder="dokumentum linkje" aria-label="Dokumentum"></td>
     <td><input type="text" data-ctf="note" value="${esc(c.note || '')}" placeholder="megjegyzés" aria-label="Megjegyzés"></td>
-    <td><button class="gb danger" data-delctr="${esc(c.id)}">Törlés</button></td></tr>`).join('');
+    <td><button class="gb danger" data-delctr="${esc(c.id)}">Törlés</button></td></tr>
+    <tr data-ctid="${esc(c.id)}" class="ctrsub"><td></td><td colspan="8"><span style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center"><b>Évenkénti indexálás</b>
+      <select data-ctf="idx" aria-label="Évenkénti indexálás" class="${!c.idx ? 'badin' : ''}">${opts(['igen', 'nem'], c.idx)}</select>
+      ${c.idx === 'igen' ? `<span>Indexálás napja minden évben:</span> <select data-ctf="idxm" aria-label="Hónap" class="${!c.idxm ? 'badin' : ''}">${opts(['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'], c.idxm)}</select> hó <select data-ctf="idxd" aria-label="Nap" class="${!c.idxd ? 'badin' : ''}">${opts(Array.from({ length: 31 }, (_, i) => String(i + 1)), c.idxd)}</select> nap <input type="text" data-ctf="idxn" value="${esc(c.idxn || '')}" placeholder="melyik index? például KSH infláció, fix 3%" aria-label="Index típusa" style="min-width:220px">` : '<span class="hint">Ha igen, itt adod meg az évenkénti dátumot.</span>'}</span></td></tr>`).join('');
   return `${cts.length ? `<div class="tw2"><table class="ptab"><thead><tr><th>ID</th><th>Típus</th><th>Forma</th><th>Melyik szerződést módosítja</th><th>Aláírva</th><th>Számlázás módja</th><th>Dokumentum</th><th>Megjegyzés</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="hint">Még nincs szerződés. Egy sor egy aláírt dokumentum vagy egy szóbeli megállapodás.</div>'}
     ${cts.length === 1 && unl.length ? `<div class="hint">${unl.length} bérlet nincs szerződéshez kötve. <button class="gb" data-linkall="${esc(cts[0].id)}">Mind a ${esc(cts[0].id)} szerződéshez</button></div>` : ''}
     <div><button class="gb" data-addctr="${esc(t.id)}">＋ Szerződés</button></div>`;
@@ -867,13 +874,15 @@ function leaseSumHtml(l) {
   return `${qline}Havi nettó az egész bérletre (számolt): ${monthTxt(m)}${m.common ? ` · közös terület ${nfm(m.common)} ${esc(l.unit || '')}` : ''}${m.notes.length ? ` <span class="hint">(${esc(m.notes.join('; '))})</span>` : ''}`;
 }
 function leaseHtml(l, cts) {
+  const cur = LEA[l.id] || l;
   const parts = partsOf(l), is = leaseIssues(l).filter((i) => !(TEN[l.t] && TEN[l.t].own) || !/nincs ár|pénznem/.test(i.msg)), n = is.filter((i) => i.lv !== 'info').length, multi = parts.length > 1, tot = +l.qty || 0, p0 = curP(parts[0] || {});
   const names = parts.map((pt) => pt.n || (OBJ[pt.obj] || {}).name || pt.obj).filter(Boolean);
   const li = (f, ph, cls) => `<input type="text" data-lf="${f}" value="${esc(l[f] == null ? '' : l[f])}" placeholder="${ph || ''}"${cls ? ` class="${cls}"` : ''}>`;
   const dcls = (f) => (l[f] && !dateOk(l[f]) ? 'badin' : '');
-  const sum = `${esc(l.use || '–')}${tot ? ' · ' + nfm(tot) + ' ' + esc(l.unit || '') : ''}${multi ? ` · ${parts.length} rész` : ''}${TEN[l.t] && TEN[l.t].own ? '' : ' · ' + (esc(feeTxt(p0, l.unit)) || 'nincs ár')}`;
+  const cparts = partsOf(cur), sum = `${esc(cur.use || '–')}${+cur.qty ? ' · ' + nfm(+cur.qty) + ' ' + esc(cur.unit || '') : ''}${cparts.length > 1 ? ` · ${cparts.length} rész` : ''}${TEN[l.t] && TEN[l.t].own ? '' : ' · ' + (esc(feeTxt(curP(cparts[0] || {}), cur.unit)) || 'nincs ár')}${(cur.vers || []).length ? ` · ${(cur.vers || []).length} módosítás` : ''}`;
   return `<details class="lease" data-lid="${esc(l.id)}"><summary><b class="mono">${esc(l.id)}</b> <span>${esc(names.join(' + ') || 'terület nélkül')}</span><span class="hint">${sum}</span><span class="ls"><span class="bdg ${is.some((i) => i.lv === 'bad') ? 'bad' : n ? '' : 'ok'}">${n || '✓'}</span> ${esc(l.status || '')}</span></summary><div class="lb">
     ${n ? `<div class="tissues">${is.filter((i) => i.lv !== 'info').map((i) => `<span class="iss ${i.lv}">${esc(i.msg)}</span>`).join('')}</div>` : ''}
+    ${verBarHtml(l, cts)}
     <div class="fgrid">
       ${fld('Szerződés', `<select data-lf="c"><option value=""></option>${cts.map((c) => `<option value="${esc(c.id)}"${l.c === c.id ? ' selected' : ''}>${esc(c.id)} · ${esc(c.type || 'szerződés')} ${esc(c.signed || '')}</option>`).join('')}</select>`)}
       ${fld('Használat', `<select data-lf="use">${opts(LISTS.use, l.use)}</select>`)}
@@ -886,7 +895,7 @@ function leaseHtml(l, cts) {
       ${fld('Felmondás dátuma', li('notice', 'ÉÉÉÉ-HH-NN', dcls('notice')))}
       ${fld('Megjegyzés', li('note', 'például: a szárny pontos felosztása nem ismert'), 'w2')}
     </div>
-    <div class="hint"><b>Részek:</b> a szerződés által nevesített területek. Mindegyiknek saját mennyisége, ára és közös terület szorzója lehet.</div>
+    <div class="hint"><b>Részek${l._k >= 0 ? ' (ebben a verzióban)' : ''}:</b> a szerződés által nevesített területek. Mindegyiknek saját mennyisége, ára és közös terület szorzója lehet.</div>
     ${parts.map((pt, i) => partHtml(l, pt, i, multi)).join('')}
     <div><button class="gb" data-addpart="${esc(l.id)}">＋ Rész</button></div>
     <div class="calc" data-lsum="${esc(l.id)}">${leaseSumHtml(l)}</div>
@@ -973,7 +982,7 @@ function tcardHtml(t) {
       ${cs.length ? `<div class="tw2"><table class="ctab"><thead><tr><th>Név</th><th>Telefon</th><th>Email</th><th>Szerep</th><th>Elsődleges</th><th>Megjegyzés</th><th></th></tr></thead><tbody>${conRows}</tbody></table></div>` : '<div class="hint">Még nincs kapcsolattartó.</div>'}
       <div><button class="gb" data-addcon="${esc(t.id)}">＋ Kapcsolattartó</button></div></div></details>
     ${t.own ? '<div class="hint" style="padding:2px 4px">Saját használat: számlázási profil, szerződés és díj nincs. A területeket alább vagy az alaprajzon jelölheted.</div>' : ownOff(t, pr, cts, vf, sel, pin)}
-    <details class="sec" open><summary>${t.own ? 'Saját használatú területek' : 'Bérletek'} (${ls.length})</summary><div class="secb">${ls.map((l) => leaseHtml(l, cts)).join('') || '<div class="hint">Még nincs bérlet.</div>'}
+    <details class="sec" open><summary>${t.own ? 'Saját használatú területek' : 'Bérletek'} (${ls.length})</summary><div class="secb">${ls.map((l) => leaseHtml(LV(l.id), cts)).join('') || '<div class="hint">Még nincs bérlet.</div>'}
       <div><button class="gb" data-addlease="${esc(t.id)}">${t.own ? '＋ Terület' : '＋ Bérlet'}</button></div></div></details>`;
 }
 function initGuide() { const g = $('tguide'); if (!g || g.dataset.init) return; g.dataset.init = '1'; let seen = false; try { seen = localStorage.getItem('acrAdm.guide') === '1'; } catch (e) { } g.open = !seen; g.addEventListener('toggle', () => { try { localStorage.setItem('acrAdm.guide', '1'); } catch (e) { } }); }
@@ -990,11 +999,49 @@ function renderTenants() {
 function refreshTenantMeta() { const t = TEN[S.tsel]; if (!t) return; const tl = $('tlist'), sc = tl.scrollTop; tl.innerHTML = tlistHtml(); tl.scrollTop = sc; const e = $('tissues'); if (e) e.innerHTML = issuesHtml(t); }
 const nextId = (pre, objs) => pre + String(Math.max(0, ...Object.keys(objs).map((k) => parseInt(k.slice(1)) || 0)) + 1).padStart(3, '0');
 function saveContact(c) { CON[c.id] = c; if (DB) DB.doc('contacts/' + c.id).set(c).catch(dbErr); }
-function saveLease(l) { LEA[l.id] = l; if (DB) DB.doc('leases/' + l.id).set(l).catch(dbErr); }
+// ---- bérlet-verziók: az eredeti feltételek + módosítások (mindegyik a teljes feltételrendszert tárolja az érvényesség kezdetétől)
+let RAW = {}, VSEL = {};   // RAW: az adatbázisban tárolt bérletek; VSEL: melyik verziót szerkeszti a lap bérletenként
+const TERM = ['unit', 'qty', 'end', 'parts'];
+const vList = (r) => (r.vers || []).map((v, i) => ({ v, i })).sort((a, b) => (a.v.from || '9999').localeCompare(b.v.from || '9999') || a.i - b.i);
+const curK = (r) => { const td = today(); let k = -1; for (const { v, i } of vList(r)) if (v.from && v.from <= td) k = i; return k; };
+function viewOf(r, k) { const c = JSON.parse(JSON.stringify(r)); c._k = k; if (k >= 0 && r.vers[k]) { const s = r.vers[k].snap || {}; for (const f of TERM) { if (s[f] === undefined) delete c[f]; else c[f] = JSON.parse(JSON.stringify(s[f])); } } return c; }
+const LV = (id) => { const r = RAW[id]; if (!r) return LEA[id]; const s = VSEL[id]; return viewOf(r, s != null && (s === -1 || (r.vers && r.vers[s])) ? s : curK(r)); };
+const vName = (r, k) => (k < 0 ? 'Eredeti' : 'Módosítás ' + (vList(r).findIndex((x) => x.i === k) + 1));
+function putRaw(raw) { if (raw.vers && !raw.vers.length) delete raw.vers; RAW[raw.id] = raw; LEA[raw.id] = viewOf(raw, curK(raw)); if (DB) DB.doc('leases/' + raw.id).set(raw).catch(dbErr); }
+function saveLease(l) {   // a megjelenített verzió módosításait a megfelelő helyre írja vissza
+  const c = JSON.parse(JSON.stringify(l)), k = c._k, r0 = RAW[c.id]; delete c._k; let raw;
+  if (!r0 || k == null || k < 0) { raw = Object.assign({}, c); delete raw.vers; if (r0 && r0.vers) raw.vers = JSON.parse(JSON.stringify(r0.vers)); }
+  else { raw = JSON.parse(JSON.stringify(r0)); const snap = {}; for (const f of TERM) if (c[f] !== undefined) snap[f] = c[f]; raw.vers[k].snap = snap;
+    for (const key of Object.keys(c)) if (!TERM.includes(key) && key !== 'vers') raw[key] = c[key];
+    for (const key of Object.keys(r0)) if (!TERM.includes(key) && key !== 'vers' && !(key in c)) delete raw[key]; }
+  putRaw(raw);
+}
+function verIssues(l, add) {
+  const vs = l.vers || []; if (!vs.length) return; const seen = new Set();
+  vList(l).forEach(({ v }, n) => { const w = `${vName(l, vs.indexOf(v))}`;
+    if (!v.from) add('bad', `${w}: hiányzik az érvényesség kezdete`); else if (!isIso(v.from)) add('bad', `${w}: az érvényesség kezdete nem érvényes dátum (ÉÉÉÉ-HH-NN)`);
+    else { if (seen.has(v.from)) add('bad', `${w}: két módosítás kezdődik ugyanazon a napon (${v.from})`); seen.add(v.from); if (isIso(l.start) && v.from < l.start) add('warn', `${w}: a módosítás a bérlet kezdete (${l.start}) előtt lép életbe`); }
+  });
+  const nx = vList(l).find(({ v }) => v.from && isIso(v.from) && v.from > today()); if (nx) add('info', `Következő módosítás: ${nx.v.from}-tól (${vName(l, nx.i)})`);
+}
+function verBarHtml(l, cts) {
+  const r = RAW[l.id] || l, ck = curK(r), sel = l._k == null ? ck : l._k, vl = vList(r), td = today();
+  const chip = (k, lab, from) => { const st = k === ck ? 'ma érvényes' : from && from > td ? 'jövőbeli' : 'korábbi'; return `<button class="vchip${k === sel ? ' on' : ''}" data-vsel="${k}" aria-pressed="${k === sel}"><b>${esc(lab)}</b> <span>${from ? esc(from) + '-tól' : 'kezdettől'}</span> <i class="${k === ck ? 'now' : ''}">${st}</i></button>`; };
+  let h = `<div class="vbar"><div><b>Verziók</b> <span class="hint">Az eredeti feltételek és a módosítások. A kimutatás és az alaprajz mindig a ma érvényes verziót használja.</span></div><div class="vchips">${chip(-1, 'Eredeti', r.start)}${vl.map(({ v, i }) => chip(i, vName(r, i), v.from)).join('')}</div>`;
+  if (sel !== ck) h += `<div class="vwarn">Most a(z) <b>${esc(vName(r, sel))}</b> verziót nézed és szerkeszted, de a ma érvényes a(z) <b>${esc(vName(r, ck))}</b>. <button class="gb" data-vsel="${ck}">Ma érvényes verzió megnyitása</button></div>`;
+  if (sel >= 0 && r.vers[sel]) { const v = r.vers[sel];
+    h += `<div class="fgrid vmeta">
+      ${fld('Érvényes ettől', `<input type="text" data-vf="from" value="${esc(v.from || '')}" placeholder="ÉÉÉÉ-HH-NN"${!v.from || !isIso(v.from) ? ' class="badin"' : ''}>`, '', 'Ettől a naptól ez a verzió érvényes')}
+      ${fld('Aláírva', `<input type="text" data-vf="signed" value="${esc(v.signed || '')}" placeholder="ÉÉÉÉ-HH-NN">`)}
+      ${fld('Szerződés (dokumentum)', `<select data-vf="c"><option value=""></option>${cts.map((c) => `<option value="${esc(c.id)}"${v.c === c.id ? ' selected' : ''}>${esc(c.id)} · ${esc(c.type || 'szerződés')} ${esc(c.signed || '')}</option>`).join('')}</select>`, '', 'Melyik aláírt módosítás ez?')}
+      ${fld('Mi változott?', `<input type="text" data-vf="note" value="${esc(v.note || '')}" placeholder="például: +60 m² a 3. emeleten, új kezdés">`, 'w2')}
+    </div><div><button class="gb danger" data-delver="${sel}">Ez a módosítás törlése</button></div>`; }
+  return h + `<div><button class="gb" data-addver="${esc(l.id)}">＋ Módosítás (terület, helyiségek, időtartam…)</button> <span class="hint">Csak árváltozás? Használd a díjaknál az „Új díjidőszak” gombot, ahhoz nem kell új verzió.</span></div></div>`;
+}
 function saveCtr(c) { CTR[c.id] = c; if (DB) DB.doc('contracts/' + c.id).set(c).catch(dbErr); }
 function reopen(lid) { renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; }
 function refreshLease(id) {   // csak az összegző sorok, a számolt sorok és a teendők frissülnek (a fókusz megmarad)
-  const l = LEA[id], d = document.querySelector(`#tcard details[data-lid="${id}"]`); if (!l || !d) { refreshTenantMeta(); return; }
+  const l = LV(id), d = document.querySelector(`#tcard details[data-lid="${id}"]`); if (!l || !d) { refreshTenantMeta(); return; }
   const tmp = document.createElement('div'); tmp.innerHTML = leaseHtml(l, conOfT(l.t)); const nd = tmp.firstElementChild;
   d.querySelector(':scope > summary').innerHTML = nd.querySelector(':scope > summary').innerHTML;
   nd.querySelectorAll('[data-calc]').forEach((c) => { const o = d.querySelector(`[data-calc="${c.dataset.calc}"]`); if (o) o.innerHTML = c.innerHTML; });
@@ -1014,30 +1061,33 @@ function tcardChange(el) {
     else if (f === 'due' || f === 'util') { const n = parseInt(el.value, 10); if (el.value === '') delete pr[f]; else if (!(n >= 0 && n <= 90)) { toast('A napok száma 0 és 90 között lehet.'); el.value = pr[f] == null ? '' : pr[f]; return; } else pr[f] = String(n); if (f === 'util' && pr.util != null) pr.util = n; }
     else { const v = el.value.trim(); if (v) pr[f] = v; else delete pr[f]; }
     t.prof = pr; saveTenant(t); }
-  else if (el.dataset.lf) { const l = normLease(LEA[el.closest('[data-lid]').dataset.lid]), f = el.dataset.lf, v = el.value.trim();
+  else if (el.dataset.vf) { const lid = el.closest('[data-lid]').dataset.lid, k = VSEL[lid], f = el.dataset.vf, v = el.value.trim(); if (k == null || !RAW[lid] || !RAW[lid].vers[k]) return;
+    if ((f === 'from' || f === 'signed') && v && !isIso(v)) { toast('A dátum alakja ÉÉÉÉ-HH-NN legyen, például 2026-04-01.'); el.value = RAW[lid].vers[k][f] || ''; return; }
+    const r = JSON.parse(JSON.stringify(RAW[lid])); if (v) r.vers[k][f] = v; else delete r.vers[k][f]; putRaw(r); reopen(lid); return; }
+  else if (el.dataset.lf) { const l = normLease(LV(el.closest('[data-lid]').dataset.lid)), f = el.dataset.lf, v = el.value.trim();
     if (f === 'endType') { if (el.value === 'indef') l.end = 'határozatlan idejű'; else if (l.end === 'határozatlan idejű') delete l.end; saveLease(l); reopen(l.id); return; }
     if (f === 'qty') { if (v === '') delete l.qty; else { const n = numIn(v); if (n === undefined) { toast('Csak nemnegatív szám adható meg.'); el.value = l.qty == null ? '' : l.qty; return; } l.qty = n; } }
     else if (v) l[f] = v; else delete l[f];
     if (f === 'use' && v === 'Parkoló' && l.unit !== 'db') { l.unit = 'db'; saveLease(l); toast('Parkolónál az egység darab: átállítottam.'); reopen(l.id); return; }
     saveLease(l); if (f === 'unit') { reopen(l.id); return; } refreshLease(l.id); return; }
   else if (el.dataset.rp) { const f = el.dataset.rp; PICK[f] = el.value; if (f === 'b') { PICK.fl = '*'; PICK.w = '*'; }
-    const d = el.closest('[data-lid]'), l = LEA[d.dataset.lid], pt = partsOf(l)[PICK.i];
+    const d = el.closest('[data-lid]'), l = LV(d.dataset.lid), pt = partsOf(l)[PICK.i];
     if (f === 'q') { d.querySelector('.plist').innerHTML = pickerListHtml(l, pt, PICK.i); } else { d.querySelector('[data-picker]').outerHTML = pickerHtml(l, pt, PICK.i); } return; }
-  else if (el.dataset.rpick) { const l = normLease(LEA[el.closest('[data-lid]').dataset.lid]), pt = l.parts[+el.closest('[data-parti]').dataset.parti], id = el.dataset.rpick, s = new Set(pt.rooms || []);
+  else if (el.dataset.rpick) { const l = normLease(LV(el.closest('[data-lid]').dataset.lid)), pt = l.parts[+el.closest('[data-parti]').dataset.parti], id = el.dataset.rpick, s = new Set(pt.rooms || []);
     el.checked ? s.add(id) : s.delete(id); pt.rooms = [...s]; if (!pt.rooms.length) delete pt.rooms; saveLease(l); renderTenants(); const d2 = document.querySelector(`#tcard details[data-lid="${l.id}"]`); if (d2) d2.open = true; return; }
-  else if (el.dataset.ptf) { const l = normLease(LEA[el.closest('[data-lid]').dataset.lid]), i = +el.closest('[data-parti]').dataset.parti, pt = l.parts[i], f = el.dataset.ptf, v = el.value.trim();
+  else if (el.dataset.ptf) { const l = normLease(LV(el.closest('[data-lid]').dataset.lid)), i = +el.closest('[data-parti]').dataset.parti, pt = l.parts[i], f = el.dataset.ptf, v = el.value.trim();
     if (f === 'qty' || f === 'cf') { if (v === '') delete pt[f]; else { const n = numIn(v); if (n === undefined) { toast('Csak nemnegatív szám adható meg.'); el.value = pt[f] == null ? '' : pt[f]; return; } pt[f] = n; } }
     else if (f === 'obj') { if (v) { pt.obj = v; pt.objName = (OBJ[v] || {}).name; if (!pt.n) pt.n = (OBJ[v] || {}).name; } else { delete pt.obj; delete pt.objName; } }
     else if (v) pt[f] = v; else delete pt[f];
     saveLease(l); if (f === 'cf' || f === 'cfInc') { reopen(l.id); return; } refreshLease(l.id); return; }
-  else if (el.dataset.pdf) { const l = normLease(LEA[el.closest('[data-lid]').dataset.lid]), pt = l.parts[+el.closest('[data-parti]').dataset.parti], i = +el.closest('[data-pi]').dataset.pi, x = pt.periods[i], f = el.dataset.pdf;
+  else if (el.dataset.pdf) { const l = normLease(LV(el.closest('[data-lid]').dataset.lid)), pt = l.parts[+el.closest('[data-parti]').dataset.parti], i = +el.closest('[data-pi]').dataset.pi, x = pt.periods[i], f = el.dataset.pdf;
     if (['rent', 'opex', 'fix', 'cp'].includes(f)) { if (el.value.trim() === '') delete x[f]; else { const n = numIn(el.value); if (n === undefined) { toast('Csak nemnegatív szám adható meg.'); el.value = x[f] == null ? '' : String(x[f]).replace('.', ','); return; } x[f] = n; } }
     else if (f === 'chk') { if (el.checked) x.chk = today(); else delete x.chk; }
     else if (f === 'gross') { if (el.value) x.gross = 1; else delete x.gross; }
     else if (/Mode$/.test(f)) { if (el.value) x[f] = 'fix'; else delete x[f]; if (f === 'rentMode' && !el.value) { delete x.gross; delete x.freq; } saveLease(l); reopen(l.id); return; }
     else { const v = el.value.trim(); if (v) x[f] = v; else delete x[f]; }
     saveLease(l); refreshLease(l.id); return; }
-  else if (el.dataset.ctf) { const c = Object.assign({}, CTR[el.closest('tr').dataset.ctid]), v = el.value.trim(); if (v) c[el.dataset.ctf] = v; else delete c[el.dataset.ctf]; if (el.dataset.ctf === 'type' && c.type !== 'Módosítás') delete c.base; if (el.dataset.ctf === 'type' && c.type === 'Szóbeli megállapodás') c.form = 'Szóbeli'; saveCtr(c); if (el.dataset.ctf === 'type') { renderTenants(); return; } }
+  else if (el.dataset.ctf) { const c = Object.assign({}, CTR[el.closest('tr').dataset.ctid]), v = el.value.trim(); if (v) c[el.dataset.ctf] = v; else delete c[el.dataset.ctf]; if (el.dataset.ctf === 'idx' && v !== 'igen') { delete c.idxm; delete c.idxd; delete c.idxn; saveCtr(c); renderTenants(); return; } if (el.dataset.ctf === 'idx') { saveCtr(c); renderTenants(); return; } if (el.dataset.ctf === 'type' && c.type !== 'Módosítás') delete c.base; if (el.dataset.ctf === 'type' && c.type === 'Szóbeli megállapodás') c.form = 'Szóbeli'; saveCtr(c); if (el.dataset.ctf === 'type') { renderTenants(); return; } }
   else if (el.dataset.uf) { const k = el.closest('tr').dataset.uk, f = el.dataset.uf, u = JSON.parse(JSON.stringify(t.util || {})), x = u[k] = u[k] || {};
     if (f === 'amt') { if (el.value.trim() === '') delete x.amt; else { const n = numIn(el.value); if (n === undefined) { toast('Csak nemnegatív szám adható meg.'); el.value = x.amt == null ? '' : x.amt; return; } x.amt = n; } }
     else { const v = el.value.trim(); if (v) x[f] = v; else delete x[f]; }
@@ -1356,7 +1406,7 @@ function buildXlsx() {
 function doExport(kind) {
   const day = new Date().toISOString().slice(0, 10), csv = (n, rows) => saveFile(`ACR_${n}_${day}.csv`, toCsv(rows), 'text/csv;charset=utf-8');
   if (kind === 'xlsx') { try { return saveBlob(`ACR_admin_${day}.xlsx`, new Blob([buildXlsx()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); } catch (e) { toast('Az Excel-fájl nem készíthető el: ' + e.message); return; } }
-  if (kind === 'json') return saveFile(`ACR_admin_mentes_${day}.json`, JSON.stringify({ format: 'acr-admin-1', exported: new Date().toISOString(), rooms: OV, alloc: ALLOC, tenants: TEN, contacts: CON, contracts: CTR, leases: LEA, objects: OBJ, rates: RATES }, null, 1), 'application/json');
+  if (kind === 'json') return saveFile(`ACR_admin_mentes_${day}.json`, JSON.stringify({ format: 'acr-admin-1', exported: new Date().toISOString(), rooms: OV, alloc: ALLOC, tenants: TEN, contacts: CON, contracts: CTR, leases: RAW, objects: OBJ, rates: RATES }, null, 1), 'application/json');
   if (kind === 'rooms') return csv('helyisegek', tblRooms(num));
   if (kind === 'summary') return csv('osszesito', tblSummary(num));
   if (kind === 'alloc') return csv('kiosztasok', tblAlloc(num));
@@ -1404,28 +1454,33 @@ document.addEventListener('click', (e) => {
   if (t.id === 'lay-btn') { const m = $('lay-menu'); m.classList.toggle('open'); $('lay-btn').setAttribute('aria-expanded', m.classList.contains('open')); return; }
   if (!t.closest('#lay-menu')) { $('lay-menu').classList.remove('open'); }
   if (t.id === 'z-in') zoom(0.8); if (t.id === 'z-out') zoom(1.25); if (t.id === 'z-fit') { FIT = fitBox(); setVB(FIT); }
+  const vs = t.closest('[data-vsel]'); if (vs) { const lid = vs.closest('[data-lid]').dataset.lid, k = +vs.dataset.vsel, r = RAW[lid]; if (r) { if (k === curK(r)) delete VSEL[lid]; else VSEL[lid] = k; } reopen(lid); return; }
+  const av = t.closest('[data-addver]'); if (av) { const lid = av.dataset.addver, r = JSON.parse(JSON.stringify(RAW[lid] || LEA[lid])), base = normLease(LV(lid)), snap = {}; for (const f of TERM) if (base[f] !== undefined) snap[f] = base[f];
+    r.vers = r.vers || []; r.vers.push({ from: today(), snap }); putRaw(r); VSEL[lid] = r.vers.length - 1; reopen(lid); toast('Új módosítás létrehozva a ma érvényes feltételekből. Állítsd be, mikortól érvényes, és írd át, ami változott.'); return; }
+  const dv = t.closest('[data-delver]'); if (dv) { if (dv.dataset.arm !== '1') { dv.dataset.arm = '1'; dv.textContent = 'Biztos?'; setTimeout(() => { if (dv.isConnected) { dv.dataset.arm = ''; dv.textContent = 'Ez a módosítás törlése'; } }, 3000); return; }
+    const lid = dv.closest('[data-lid]').dataset.lid, r = JSON.parse(JSON.stringify(RAW[lid])); r.vers.splice(+dv.dataset.delver, 1); delete VSEL[lid]; putRaw(r); reopen(lid); return; }
   const al = t.closest('[data-addlease]'); if (al) { const id = nextId('L', LEA); saveLease({ id, t: al.dataset.addlease, status: 'Tárgyalásban', unit: 'm²', parts: [{ periods: [{ from: today() }] }], src: 'admin oldal' }); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${id}"]`); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } return; }
   const rpk = t.closest('[data-roompick]'); if (rpk) { const lid = rpk.closest('[data-lid]').dataset.lid, i = +rpk.dataset.roompick;
-    if (PICK && PICK.lid === lid && PICK.i === i) PICK = null; else { const l = LEA[lid], pt = partsOf(l)[i], first = rmap()[(pt.rooms || [])[0]]; PICK = { lid, i, b: first ? first.b : BLD, fl: '*', w: '*', q: '' }; }
+    if (PICK && PICK.lid === lid && PICK.i === i) PICK = null; else { const l = LV(lid), pt = partsOf(l)[i], first = rmap()[(pt.rooms || [])[0]]; PICK = { lid, i, b: first ? first.b : BLD, fl: '*', w: '*', q: '' }; }
     renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
-  const unr = t.closest('[data-unroom]'); if (unr) { const lid = unr.closest('[data-lid]').dataset.lid, l = normLease(LEA[lid]), pt = l.parts[+unr.closest('[data-parti]').dataset.parti]; pt.rooms = (pt.rooms || []).filter((x) => x !== unr.dataset.unroom); if (!pt.rooms.length) delete pt.rooms; saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
+  const unr = t.closest('[data-unroom]'); if (unr) { const lid = unr.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), pt = l.parts[+unr.closest('[data-parti]').dataset.parti]; pt.rooms = (pt.rooms || []).filter((x) => x !== unr.dataset.unroom); if (!pt.rooms.length) delete pt.rooms; saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
   const mk = t.closest('[data-markrooms]'); if (mk) { if (mk.dataset.arm !== '1') { mk.dataset.arm = '1'; mk.textContent = 'Biztos? Átírja a helyiségek jelölését'; setTimeout(() => { if (mk.isConnected) { mk.dataset.arm = ''; mk.textContent = 'Jelölés az alaprajzon'; } }, 4000); return; }
-    const lid = mk.closest('[data-lid]').dataset.lid, l = LEA[lid], pt = partsOf(l)[+mk.closest('[data-parti]').dataset.parti]; let n = 0; for (const r of partArea(l, pt).used) { const o = OV[r.id] || {}; if ((eff(r) !== 'rented' && eff(r) !== 'own') || o.t !== l.t) { saveRoom(r.id, { s: eff(r) === 'own' ? 'own' : 'rented', t: l.t }); n++; } }
+    const lid = mk.closest('[data-lid]').dataset.lid, l = LV(lid), pt = partsOf(l)[+mk.closest('[data-parti]').dataset.parti]; let n = 0; for (const r of partArea(l, pt).used) { const o = OV[r.id] || {}; if ((eff(r) !== 'rented' && eff(r) !== 'own') || o.t !== l.t) { saveRoom(r.id, { s: eff(r) === 'own' ? 'own' : 'rented', t: l.t }); n++; } }
     toast(n ? `${n} helyiség jelölése átírva: ${tName(l.t)}` : 'A helyiségek jelölése már egyezik.'); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
-  const acp = t.closest('[data-addcp]'); if (acp) { const lid = acp.closest('[data-lid]').dataset.lid, l = normLease(LEA[lid]), x = l.parts[+acp.closest('[data-parti]').dataset.parti].periods[+acp.dataset.addcp]; x.cpMode = 'fix'; saveLease(l); reopen(lid); return; }
-  const dfx = t.closest('[data-dropfix]'); if (dfx) { const lid = dfx.closest('[data-lid]').dataset.lid, l = normLease(LEA[lid]), x = l.parts[+dfx.closest('[data-parti]').dataset.parti].periods[+dfx.dataset.dropfix]; delete x.fix; delete x.fixCur; saveLease(l); reopen(lid); return; }
-  const apt = t.closest('[data-addpart]'); if (apt) { const l = normLease(LEA[apt.dataset.addpart]); l.parts.push({ periods: [{ from: today() }] }); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${l.id}"]`); if (d) d.open = true; return; }
-  const dpt = t.closest('[data-delpart]'); if (dpt) { if (dpt.dataset.arm !== '1') { dpt.dataset.arm = '1'; dpt.textContent = 'Biztos?'; setTimeout(() => { if (dpt.isConnected) { dpt.dataset.arm = ''; dpt.textContent = 'Rész törlése'; } }, 3000); return; } const lid = dpt.closest('[data-lid]').dataset.lid, l = normLease(LEA[lid]); l.parts.splice(+dpt.dataset.delpart, 1); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
-  const ap = t.closest('[data-addper]'); if (ap) { const lid = ap.closest('[data-lid]').dataset.lid, l = normLease(LEA[lid]), pt = l.parts[+ap.dataset.addper], last = Object.assign({}, pt.periods[pt.periods.length - 1] || {}); delete last.chk; delete last.note; last.from = today(); pt.periods.push(last); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
-  const dp = t.closest('[data-delper]'); if (dp) { if (dp.dataset.arm !== '1') { dp.dataset.arm = '1'; dp.textContent = 'Biztos?'; setTimeout(() => { if (dp.isConnected) { dp.dataset.arm = ''; dp.textContent = '×'; } }, 3000); return; } const lid = dp.closest('[data-lid]').dataset.lid, l = normLease(LEA[lid]), pt = l.parts[+dp.closest('[data-parti]').dataset.parti]; pt.periods.splice(+dp.dataset.delper, 1); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
-  const dl = t.closest('[data-dellease]'); if (dl) { const l = LEA[dl.dataset.dellease]; if (l && l.status && l.status !== 'Tárgyalásban') { toast('Ez a bérlet nem törölhető: a lezáráshoz állítsd a státuszt Lejártra.'); return; } if (dl.dataset.arm !== '1') { dl.dataset.arm = '1'; dl.textContent = 'Biztosan törli?'; setTimeout(() => { if (dl.isConnected) { dl.dataset.arm = ''; dl.textContent = 'Bérlet törlése'; } }, 3000); return; } delete LEA[l.id]; if (DB) DB.doc('leases/' + l.id).delete().catch(dbErr); renderTenants(); return; }
+  const acp = t.closest('[data-addcp]'); if (acp) { const lid = acp.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), x = l.parts[+acp.closest('[data-parti]').dataset.parti].periods[+acp.dataset.addcp]; x.cpMode = 'fix'; saveLease(l); reopen(lid); return; }
+  const dfx = t.closest('[data-dropfix]'); if (dfx) { const lid = dfx.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), x = l.parts[+dfx.closest('[data-parti]').dataset.parti].periods[+dfx.dataset.dropfix]; delete x.fix; delete x.fixCur; saveLease(l); reopen(lid); return; }
+  const apt = t.closest('[data-addpart]'); if (apt) { const l = normLease(LV(apt.dataset.addpart)); l.parts.push({ periods: [{ from: today() }] }); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${l.id}"]`); if (d) d.open = true; return; }
+  const dpt = t.closest('[data-delpart]'); if (dpt) { if (dpt.dataset.arm !== '1') { dpt.dataset.arm = '1'; dpt.textContent = 'Biztos?'; setTimeout(() => { if (dpt.isConnected) { dpt.dataset.arm = ''; dpt.textContent = 'Rész törlése'; } }, 3000); return; } const lid = dpt.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)); l.parts.splice(+dpt.dataset.delpart, 1); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
+  const ap = t.closest('[data-addper]'); if (ap) { const lid = ap.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), pt = l.parts[+ap.dataset.addper], last = Object.assign({}, pt.periods[pt.periods.length - 1] || {}); delete last.chk; delete last.note; last.from = today(); pt.periods.push(last); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
+  const dp = t.closest('[data-delper]'); if (dp) { if (dp.dataset.arm !== '1') { dp.dataset.arm = '1'; dp.textContent = 'Biztos?'; setTimeout(() => { if (dp.isConnected) { dp.dataset.arm = ''; dp.textContent = '×'; } }, 3000); return; } const lid = dp.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), pt = l.parts[+dp.closest('[data-parti]').dataset.parti]; pt.periods.splice(+dp.dataset.delper, 1); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
+  const dl = t.closest('[data-dellease]'); if (dl) { const l = LEA[dl.dataset.dellease]; if (l && l.status && l.status !== 'Tárgyalásban') { toast('Ez a bérlet nem törölhető: a lezáráshoz állítsd a státuszt Lejártra.'); return; } if (dl.dataset.arm !== '1') { dl.dataset.arm = '1'; dl.textContent = 'Biztosan törli?'; setTimeout(() => { if (dl.isConnected) { dl.dataset.arm = ''; dl.textContent = 'Bérlet törlése'; } }, 3000); return; } delete LEA[l.id]; delete RAW[l.id]; if (DB) DB.doc('leases/' + l.id).delete().catch(dbErr); renderTenants(); return; }
   const ac2 = t.closest('[data-addctr]'); if (ac2) { const id = nextId('C', CTR); saveCtr({ id, t: ac2.dataset.addctr, src: 'admin oldal' }); renderTenants(); return; }
   const dc2 = t.closest('[data-delctr]'); if (dc2) { const id = dc2.dataset.delctr, used = Object.values(LEA).filter((l) => l.c === id).length; if (used) { toast(`Nem törölhető: ${used} bérlet hivatkozik rá.`); return; } if (dc2.dataset.arm !== '1') { dc2.dataset.arm = '1'; dc2.textContent = 'Biztos?'; setTimeout(() => { if (dc2.isConnected) { dc2.dataset.arm = ''; dc2.textContent = 'Törlés'; } }, 3000); return; } delete CTR[id]; if (DB) DB.doc('contracts/' + id).delete().catch(dbErr); renderTenants(); return; }
   const la = t.closest('[data-linkall]'); if (la) { for (const l of leaOf(S.tsel)) if (!l.c) saveLease(Object.assign({}, l, { c: la.dataset.linkall })); renderTenants(); return; }
   const no = t.closest('[data-newobj]'); if (no) { const lid = no.closest('[data-lid]').dataset.lid, box = no.closest('[data-parti]').querySelector(`[data-newobjbox="${no.dataset.newobj}"]`); box.hidden = !box.hidden; if (!box.innerHTML) box.innerHTML = `<label class="fld"><span>Tárgy kódja</span><input type="text" data-no="id" placeholder="például B-WOLT-3"></label><label class="fld"><span>Típus</span><select data-no="type">${opts(LISTS.otype, '', true)}</select></label><label class="fld"><span>Épület</span><select data-no="bld">${opts(LISTS.bld, '', true)}</select></label><label class="fld w2"><span>Megnevezés</span><input type="text" data-no="name" placeholder="például B épület, hátsó raktár"></label><button class="pb" data-saveobj="${esc(no.dataset.newobj)}" data-slid="${esc(lid)}">Tárgy mentése</button>`; return; }
   const so = t.closest('[data-saveobj]'); if (so) { const box = so.parentElement, g = (k) => box.querySelector(`[data-no="${k}"]`).value.trim(), id = g('id'); if (!id || !/^[A-Za-z0-9ÁÉÍÓÖŐÚÜŰáéíóöőúüű_-]+$/.test(id)) { toast('A tárgy kódja kötelező, szóköz nélkül (betű, szám, kötőjel).'); return; } if (OBJ[id]) { toast('Ez a tárgykód már létezik.'); return; } if (!g('name')) { toast('Adj meg megnevezést.'); return; }
     const o = { id, name: g('name'), type: g('type') || undefined, bld: g('bld') || undefined, src: 'admin oldal' }; for (const k of Object.keys(o)) if (o[k] === undefined) delete o[k]; OBJ[id] = o; if (DB) DB.doc('objects/' + id).set(o).catch(dbErr);
-    const l = normLease(LEA[so.dataset.slid]), pt = l.parts[+so.dataset.saveobj]; pt.obj = id; pt.objName = o.name; if (!pt.n) pt.n = o.name; saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${l.id}"]`); if (d) d.open = true; return; }
+    const l = normLease(LV(so.dataset.slid)), pt = l.parts[+so.dataset.saveobj]; pt.obj = id; pt.objName = o.name; if (!pt.n) pt.n = o.name; saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${l.id}"]`); if (d) d.open = true; return; }
   const rv = t.closest('[data-rv]'); if (rv) { RV.view = rv.dataset.rv; renderReport(); return; }
   const rc = t.closest('[data-rc]'); if (rc) { RV.cur = rc.dataset.rc; renderReport(); return; }
   if (t.id === 'r-save') { const d = $('r-date').value, v = numIn($('r-val').value); if (!isIso(d)) { toast('Adj meg dátumot.'); return; } if (d > today()) { toast('Jövőbeli dátumra nem vehető fel árfolyam.'); return; } if (!(v >= 200 && v <= 700)) { toast('Az árfolyam nem hihető: 200 és 700 Ft közötti értéket adj meg.'); return; }
@@ -1661,7 +1716,7 @@ buildFilters(); buildLayerMenu(); legend(); buildPlan(); renderList(); renderOve
   DB.collection('rooms').onSnapshot((snap) => { dbOk = true; clearTimeout(to); OV = {}; snap.docs.forEach((d) => { OV[d.id] = d.data(); }); syncDrawn(); renderAll(); }, (e) => { $('dbnote').textContent = 'adatbázis hiba: ' + (e && e.message || e.code); $('dbnote').className = 'bad'; });
   DB.collection('rates').onSnapshot((snap) => { RATES = {}; snap.docs.forEach((d) => { RATES[d.id] = d.data(); }); if (S.tab === 'rep') renderReport(); }, () => { });
   DB.collection('alloc').onSnapshot((snap) => { dbOk = true; clearTimeout(to); ALLOC = {}; snap.docs.forEach((d) => { ALLOC[d.id] = d.data(); }); renderAll(); }, () => { });
-  for (const [col, tgt] of [['contacts', CON], ['leases', LEA], ['objects', OBJ], ['contracts', CTR]]) DB.collection(col).onSnapshot((snap) => { dbOk = true; const o = {}; snap.docs.forEach((d) => { o[d.id] = Object.assign({ id: d.id }, d.data()); }); if (col === 'contacts') CON = o; else if (col === 'leases') LEA = o; else if (col === 'objects') OBJ = o; else CTR = o; renderAll(); }, () => { });
+  for (const [col, tgt] of [['contacts', CON], ['leases', LEA], ['objects', OBJ], ['contracts', CTR]]) DB.collection(col).onSnapshot((snap) => { dbOk = true; const o = {}; snap.docs.forEach((d) => { o[d.id] = Object.assign({ id: d.id }, d.data()); }); if (col === 'contacts') CON = o; else if (col === 'leases') { RAW = o; LEA = {}; for (const [id, r] of Object.entries(o)) LEA[id] = viewOf(r, curK(r)); } else if (col === 'objects') OBJ = o; else CTR = o; renderAll(); }, () => { });
   DB.collection('tenants').onSnapshot((snap) => { dbOk = true; clearTimeout(to); TEN = {}; snap.docs.forEach((d) => { TEN[d.id] = Object.assign({ id: d.id }, d.data()); }); renderAll(); }, () => { });
 })();
 </script>
