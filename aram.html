@@ -51,7 +51,7 @@ h2{font-size:.98rem;font-weight:600}
 .filebtn.over{border-color:var(--fc)}
 :focus-visible{outline:2px solid var(--fc);outline-offset:2px}
 .msg{font-size:.82rem;padding:7px 12px;border-radius:6px;background:var(--panel);border-left:3px solid var(--warn)}
-.msg.err{border-left-color:var(--bad)} .msg.ok{border-left-color:var(--good)}
+.msg.err{border-left-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--panel))} .msg.ok{border-left-color:var(--good);background:color-mix(in srgb,var(--good) 12%,var(--panel))}
 .kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 14px;display:grid;gap:4px;align-content:start;min-width:0}
 .kpi.hero{grid-column:span 2;background:color-mix(in srgb,var(--fc) 8%,var(--panel));border-color:color-mix(in srgb,var(--fc) 42%,var(--line))}
@@ -574,9 +574,10 @@ function handleFile(file){
       if(ms.length>1){msg(`A fájl több hónapot tartalmaz (${ms.join(", ")}). Egy hónapot tölts be egyszerre.`,"err");return}
       const m=ms[0]; if(INV.has(m)){msg(`${monthName(m)} már lezárt hónap, a számlája bent van. Csak folyó hónapot lehet betölteni.`,"err");return}
       let full=0,partial=[];
+      const old=new Map(monthDays(m).map(x=>[x.d,{k:x.k,pw:x.pw}]));
       for(const x of monthDays(m)){const r=DAYS.get(x.d)||{d:x.d};delete r.k;delete r.pk;delete r.pw;delete r.estPw;DAYS.set(x.d,r)}
       for(const [d,o] of per){const r=DAYS.get(d)||{d};
-        if(o.n>=92){r.k=o.k;r.pk=o.pk;if(r.ps!=null&&r.pw==null)r.estPw=true;full++}else partial.push(d.slice(8)+". ("+o.n+" negyedóra)");DAYS.set(d,r)}
+        if(o.n>=92){r.k=o.k;r.pk=o.pk;const ov=old.get(d);if(ov&&ov.k!=null&&ov.pw!=null&&Math.abs(ov.k-o.k)<0.01)r.pw=ov.pw;full++}else partial.push(d.slice(8)+". ("+o.n+" negyedóra)");DAYS.set(d,r)}
       imported={last:[...per.keys()].sort().pop()};
       const tot=[...per.values()].reduce((s,o)=>s+o.k,0);
       msg(`Betöltve: ${monthName(m)}, ${full} teljes nap, összesen ${f2(tot)} kWh.${partial.length?" Hiányos napok, kihagyva: "+partial.join(", ")+".":""} Az új napok súlyozott ára becsült (napi átlagár × napszak-szorzó), amíg az árakat nem frissítjük az oldalban.`,"ok");
