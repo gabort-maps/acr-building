@@ -1,4 +1,4 @@
-<!doctype html><html lang="hu"><head><!-- ACR listaár v2.3 --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="hu"><head><!-- ACR listaár v2.4 --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <script>// Ugyanaz a belépés és adatbázis (Supabase, public.docs), mint az acr-admin.html-ben.
 // ?helyi=1 : helyi próbamód, az adat csak ebben a böngészőben (localStorage) van.
@@ -580,54 +580,75 @@ const CIN = [
   ['fut', 'Futamidő és engedmények', true, [['T', 'Bérleti idő', 'hónap, 1–120'], ['free', 'Díjmentes időszak', 'hónap, a futamidő elején, egész vagy fél'], ['fit', 'Fit-out hozzájárulás', '{c}/m², nettó területre'], ['oth', 'Egyéb egyszeri költség', '{c}/m²']]],
   ['ugy', 'Ügynöki díj', false, [['feeType', 'Típus', '', ['Nincs', 'Hónap', '%']], ['feeM', 'Hónapok száma', 'csak „Hónap” típusnál'], ['feeP', 'Százalék', '%, a futamidő teljes díjából, csak „%” típusnál'], ['base', 'Alapja', '', ['Headline', 'Díjmentes levonva', 'Nettó effektív']]]],
   ['pen', 'Pénzügyi paraméterek', false, [['idx', 'Éves indexálás', '%'], ['disc', 'Éves diszkontráta', '%']]],
-  ['uz', 'Üzemeltetés', false, [['sc', 'Üzemeltetési díj', '{c}/m²/hó'], ['scMode', 'Üzemeltetési díj a díjmentes időben', '', ['Fizetendő', 'Díjmentes']]]],
+  ['uz', 'Üzemeltetés', true, [['sc', 'Üzemeltetési díj', '{c}/m²/hó, a számlázott területre'], ['scFree', 'Üzemeltetési díjmentes időszak', 'hónap, a futamidő elején; független a bérmentességtől, egész vagy fél'],
+    ['scInc', 'Bérlet miatti többletköltség', '{c}/m²/hó; csak ami üres terület mellett nem merülne fel'], ['scReal', 'Tényleges üzemeltetési költség', '{c}/m²/hó; nem kötelező, az üresen állás költségéhez']]],
   ['en', 'Energia', true, [['eK', 'Becsült fogyasztás', 'kWh/m²/hó, a nettó területre'], ['eC', 'Önköltség', 'Ft/kWh, amennyiért mi vesszük'], ['eM', 'Árrés', 'Ft/kWh, lehet negatív is']]],
 ];
-const SELDEF = { feeType: 'Nincs', base: 'Headline', scMode: 'Fizetendő' };
+const SELDEF = { feeType: 'Nincs', base: 'Headline' };
+// régi mentés átvétele: a „Díjmentes” üzemeltetési mód = annyi üzemeltetési díjmentes hónap, ahány bérmentes
+const mig = (x) => { if (x.scMode === 'Díjmentes' && x.scFree == null && x.free != null) x.scFree = x.free; delete x.scMode; return x; };
 const blankV = () => Object.assign({}, SELDEF);
 const RES = [
-  ['nerd', 'Nettó effektív díj, diszkontált, ügynöki díjjal', '{c}/m²/hó, döntéshez', 2, 'hi'],
-  ['ner0', 'Nettó effektív díj, ügynöki díj nélkül', '{c}/m²/hó, ahogy a bérlő látja', 2, 'hi'],
-  ['ner', 'Nettó effektív díj, ügynöki díjjal', '{c}/m²/hó', 2, 'hi'],
+  ['totNerd', 'Teljes nettó effektív díj, diszkontált', '{c}/m²/hó: bérleti díj + üzemeltetés + energia árrés, döntéshez', 2, 'hi'],
+  ['totNer', 'Teljes nettó effektív díj', '{c}/m²/hó: bérleti díj + üzemeltetés + energia árrés', 2, 'hi'],
+  ['totIncome', 'Bérbeadó teljes nettó bevétele a futamidőre', '{c}, az üresen álláshoz képest', 0, 'hi'],
+  ['scContr', 'Üzemeltetési hozzájárulás a futamidőre', '{c}: beszedett üzemeltetési díj − többletköltség', 0, 'hi'],
+  ['vacTot', 'Üresen állás üzemeltetési költsége a futamidőre', '{c}, a tényleges üzemeltetési költséggel', 0],
+  ['realRes', 'Bérbeadó eredménye a tényleges üzemeltetési költséggel', '{c}: teljes nettó bevétel − tényleges üzemeltetési költség', 0, 'hi'],
+  ['nerd', 'Nettó effektív bérleti díj, diszkontált, ügynöki díjjal', '{c}/m²/hó, csak bérleti díj, piaci összevetéshez', 2, 'hi'],
+  ['ner0', 'Nettó effektív bérleti díj, ügynöki díj nélkül', '{c}/m²/hó, ahogy a bérlő látja', 2, 'hi'],
+  ['ner', 'Nettó effektív bérleti díj, ügynöki díjjal', '{c}/m²/hó', 2, 'hi'],
   ['inc', 'Engedmény + költség a headline díjhoz képest', '%', 1, 'lo', true],
   ['incM', 'Összes engedmény és költség', 'havi díjban', 1, 'lo'],
   ['feeMo', 'Ebből ügynöki díj', 'havi díjban', 1],
-  ['income', 'Bérbeadó nettó bevétele a futamidőre', '{c}', 0, 'hi'],
+  ['income', 'Bérbeadó nettó bérleti bevétele a futamidőre', '{c}, üzemeltetés és energia nélkül', 0, 'hi'],
   ['feeTot', 'Ügynöki díj összesen', '{c}', 0],
   ['foTot', 'Fit-out és egyéb összesen', '{c}', 0],
   ['billed', 'Számlázott terület (nettó + közös)', 'm²', 2],
-  ['mRent', 'Havi bérleti díj a díjmentes idő után', '{c}', 0],
-  ['mSc', 'Havi üzemeltetési díj a díjmentes idő után', '{c}', 0],
+  ['mRent', 'Havi bérleti díj a díjmentes időszakok után', '{c}', 0],
+  ['mSc', 'Havi üzemeltetési díj a díjmentes időszakok után', '{c}', 0],
   ['mTot', 'Bérlő havi költsége (díj + üzem.)', '{c}', 0],
-  ['opxTot', 'Üzemeltetési díj összesen a futamidőre', '{c}', 0],
+  ['opxTot', 'Beszedett üzemeltetési díj a futamidőre', '{c}', 0],
   ['tenantTot', 'Bérlő teljes költsége a futamidőre', '{c}, energia nélkül', 0],
   ['eKwh', 'Energia: havi fogyasztás', 'kWh/hó', 0],
   ['eBill', 'Energia: havi továbbszámlázás a bérlőnek', 'Ft/hó (önköltség + árrés)', 0],
   ['eGain', 'Energia: havi nyereség / veszteség', 'Ft/hó', 0, 'hi'],
   ['eGainT', 'Energia: nyereség / veszteség a futamidőre', 'Ft', 0, 'hi'],
 ];
-let CV = ls.get('acrListaar.kalk2', null), CS = Object.assign({ b: '', k: '*', w: '*', u: '', cur: 'EUR', src: '' }, ls.get('acrListaar.kalkhely', {})), KEYS = ls.get('acrListaar.kulcs', ['nerd', 'ner0', 'mTot', 'income', 'eGain']), COPEN = ls.get('acrListaar.kalknyit', {});
+let CV = ls.get('acrListaar.kalk2', null), CS = Object.assign({ b: '', k: '*', w: '*', u: '', cur: 'EUR', src: '' }, ls.get('acrListaar.kalkhely', {})), KEYS = ls.get('acrListaar.kulcs', ['totNerd', 'totIncome', 'nerd', 'mTot', 'eGain']), COPEN = ls.get('acrListaar.kalknyit', {});
 if (!Array.isArray(CV) || CV.length !== 3) CV = (ls.get('acrListaar.kalkalap', null) || {}).v || [blankV(), blankV(), blankV()];
 if (!(ls.get('acrListaar.kalk2', null))) { const d = ls.get('acrListaar.kalkalap', null); if (d && d.cur) CS.cur = d.cur; }
+CV = CV.map(mig);
+if (!ls.get('acrListaar.kulcs3', false)) { KEYS = ['totNerd', 'totIncome', ...KEYS.filter((k) => k !== 'totNerd' && k !== 'totIncome')]; ls.set('acrListaar.kulcs', KEYS); ls.set('acrListaar.kulcs3', true); }
 const saveCalc = () => { ls.set('acrListaar.kalk2', CV); ls.set('acrListaar.kalkhely', CS); };
 const z = (v) => (v == null || isNaN(v) ? 0 : +v);
 function calc(x0) {
-  const x = Object.assign({}, x0); for (const k of ['cf', 'free', 'fit', 'oth', 'feeM', 'feeP', 'idx', 'disc', 'sc']) x[k] = z(x[k]);
-  const T = Math.round(x.T), idx = x.idx / 100, disc = x.disc / 100, cf = x.cf / 100;
-  let paid = 0, head = 0, pv = 0, dfs = 0, opx = 0, firstH = null, firstS = null;
+  const x = Object.assign({}, x0); for (const k of ['cf', 'free', 'fit', 'oth', 'feeM', 'feeP', 'idx', 'disc', 'sc', 'scFree', 'scInc']) x[k] = z(x[k]);
+  const T = Math.round(x.T), idx = x.idx / 100, disc = x.disc / 100, cf = x.cf / 100, hasReal = x.scReal != null && !isNaN(x.scReal);
+  const billed = x.area * (1 + cf);
+  // energia árrés a díj pénznemében (az energia forintban van; EUR díjnál a Beállítások árfolyamával)
+  let eM = null, eMiss = false;
+  if (x.eK != null && !isNaN(x.eK)) { const ft = x.eK * x.area * z(x.eM); if (CS.cur === 'HUF') eM = ft; else if (+SET.rate > 0) eM = ft / +SET.rate; else eMiss = true; }
+  // a díjak a számlázott m²-re értendők; az üzemeltetés a bérbeadónak többletbevétel, mert a költség üresen is felmerül
+  let paid = 0, head = 0, pv = 0, dfs = 0, opx = 0, scC = 0, scCpv = 0, ePv = 0, real = 0;
+  const M1 = Math.floor(Math.max(x.free, x.scFree)) + 1; let firstH = null, firstS = null;
   for (let m = 1; m <= T; m++) {
-    const y = Math.floor((m - 1) / 12), g = Math.pow(1 + idx, y), h = x.R * g, fr = Math.max(0, Math.min(1, m - x.free)), df = 1 / Math.pow(1 + disc, (m - 1) / 12);
+    const y = Math.floor((m - 1) / 12), g = Math.pow(1 + idx, y), h = x.R * g, fr = Math.max(0, Math.min(1, m - x.free)), sfr = Math.max(0, Math.min(1, m - x.scFree)), df = 1 / Math.pow(1 + disc, (m - 1) / 12);
     paid += h * fr; head += h; pv += h * fr * df; dfs += df;
-    opx += x.sc * g * (x.scMode === 'Díjmentes' ? fr : 1);   // a v4-hez képest: díjmentes módban a fél díjmentes hónapban az üzemeltetési díj is fél
-    if (m === Math.floor(x.free) + 1) { firstH = h; firstS = x.sc * g; }
+    const sp = x.sc * g * sfr, c = sp - x.scInc * g;
+    opx += sp; scC += c; scCpv += c * df; if (eM != null) ePv += eM / billed * df; if (hasReal) real += x.scReal * g;
+    if (m === M1) { firstH = h; firstS = x.sc * g; }
   }
-  const billed = x.area * (1 + cf), fo = (x.fit + x.oth) * x.area / billed;
+  const eTot = eM != null ? eM * T / billed : 0, fo = (x.fit + x.oth) * x.area / billed;
   const base = x.base === 'Headline' ? head : x.base === 'Díjmentes levonva' ? paid : paid - fo;
   const fee = x.feeType === 'Hónap' ? x.feeM * base * x.R / head : x.feeType === '%' ? x.feeP / 100 * base : 0;
   const r = { billed, ner0: (paid - fo) / T, ner: (paid - fo - fee) / T, nerd: (pv - fo - fee) / dfs, inc: 1 - ((paid - fo - fee) / T) / (head / T), incM: (head - paid + fo + fee) / (head / T), feeMo: fee / (head / T),
     income: (paid - fo - fee) * billed, feeTot: fee * billed, foTot: fo * billed, mRent: firstH * billed, mSc: firstS * billed, opxTot: opx * billed, tenantTot: (paid + opx) * billed };
-  r.mTot = r.mRent + r.mSc;
+  r.mTot = firstH != null ? r.mRent + r.mSc : null; if (firstH == null) { r.mRent = null; r.mSc = null; }
   if (x.eK != null && !isNaN(x.eK)) { r.eKwh = x.eK * x.area; r.eBill = r.eKwh * (z(x.eC) + z(x.eM)); r.eGain = r.eKwh * z(x.eM); r.eGainT = r.eGain * T; }
+  r.scContr = scC * billed; r.eMiss = eMiss;
+  r.totNer = (paid + scC + eTot - fo - fee) / T; r.totNerd = (pv + scCpv + ePv - fo - fee) / dfs; r.totIncome = r.totNer * T * billed;
+  if (hasReal) { r.vacTot = real * billed; r.realRes = r.totIncome - r.vacTot; }
   return r;
 }
 function check(x) {
@@ -638,10 +659,12 @@ function check(x) {
   if (!(x.R > 0)) return 'Ajánlati díj legyen > 0';
   if (!(x.area > 0)) return 'Terület legyen > 0';
   if (!(v('cf') >= 0 && v('cf') <= 50)) return 'Közös terület 0–50%';
-  if (['free', 'fit', 'oth', 'feeM', 'feeP', 'sc', 'eK', 'eC'].some((f) => x[f] != null && (isNaN(x[f]) || x[f] < 0))) return 'Negatív vagy hibás bemenet';
+  if (['free', 'fit', 'oth', 'feeM', 'feeP', 'sc', 'scFree', 'scInc', 'scReal', 'eK', 'eC'].some((f) => x[f] != null && (isNaN(x[f]) || x[f] < 0))) return 'Negatív vagy hibás bemenet';
   if (x.eM != null && isNaN(x.eM)) return 'Hibás árrés';
   if (v('free') >= x.T) return 'Díjmentes idő ≥ futamidő';
   if (v('free') * 2 !== Math.round(v('free') * 2)) return 'Díjmentes idő egész vagy fél hónap';
+  if (v('scFree') >= x.T) return 'Üzemeltetési díjmentes idő ≥ futamidő';
+  if (v('scFree') * 2 !== Math.round(v('scFree') * 2)) return 'Üzemeltetési díjmentes idő egész vagy fél hónap';
   if (!(v('idx') >= -5 && v('idx') <= 15)) return 'Indexálás −5% és 15% között';
   if (!(v('disc') >= 0 && v('disc') <= 30)) return 'Diszkontráta 0–30%';
   if (x.feeType === 'Hónap' && v('feeM') > 12) return 'Ügynöki díj legfeljebb 12 hónap';
@@ -674,7 +697,7 @@ function renderCalc() {
       ${key.map(resRow).join('') || '<p class="hint">Nincs kiválasztott fő eredmény.</p>'}</div></details>
     <details class="cg" data-g="more"${COPEN.more ? ' open' : ''}><summary>További eredmények (${rest.length})</summary><div>${rest.map(resRow).join('')}</div></details>
     <details class="cg" data-g="keys"${COPEN.keys ? ' open' : ''}><summary>Melyik eredmény legyen a fő eredmények között?</summary><div class="keys">${RES.map(([id, lab]) => `<label><input type="checkbox" data-key="${id}"${KEYS.includes(id) ? ' checked' : ''}>${lab}</label>`).join('')}</div></details>
-    <p class="hint" style="margin-top:6px">A díjak a számlázott területre (nettó + közös) járnak, az energia a nettó területre. Üres mező = 0, kivéve a területet, az ajánlati díjat és a futamidőt. Az energia forintban számolódik. Belső használatra: az ügynöki díj, a diszkontált díj és a bérbeadó bevétele nem adható ki a bérlőnek.</p>`;
+    <p class="hint" style="margin-top:6px">${R.some((o) => o.r && o.r.eMiss) ? '<b class="bad">Az energia árrése nincs a teljes eredményben: EUR díjnál add meg az árfolyamot a Beállításokban.</b> ' : ''}A díjak a számlázott területre (nettó + közös) járnak, az energia a nettó területre. A teljes nettó effektív díj és a teljes nettó bevétel az üresen álláshoz képest számol: az üzemeltetés költsége üres területnél is felmerül, ezért a beszedett üzemeltetési díj (a bérlet miatti többletköltség nélkül) bevétel. Az üzemeltetési díj a bérleti díjjal együtt indexálódik. Az ügynöki díj csak a bérleti díj után jár. Üres mező = 0, kivéve a területet, az ajánlati díjat és a futamidőt. Belső használatra: az ügynöki díj, a diszkontált díj és a bérbeadó bevétele nem adható ki a bérlőnek.</p>`;
 }
 function lpNote(x) { const v = x.lp[tierIdx(x.T)], tl = TERMS[tierIdx(x.T)][1]; if (v == null) return `<div class="lp">nincs listaár (${tl})</div>`; const d = x.R != null && !isNaN(x.R) ? (x.R / v - 1) * 100 : null; return `<div class="lp">listaár ${tl}: ${nf(v)}${d != null && Math.abs(d) > 0.005 ? ` <span class="${d < 0 ? 'bad' : 'ok'}">${d > 0 ? '+' : ''}${nf(d, 1)}%</span>` : ''}</div>`; }
 function loadUnit() {
@@ -709,7 +732,7 @@ for (const [id, f] of [['cB', 'b'], ['cK', 'k'], ['cW', 'w'], ['cU', 'u']]) $(id
 $('cCur').onchange = (e) => { CS.cur = e.target.value; saveCalc(); renderCalc(); };
 $('cLoad').onclick = loadUnit;
 $('cSaveDef').onclick = () => { ls.set('acrListaar.kalkalap', { v: CV.map((x) => { const o = Object.assign({}, x); delete o.lp; return o; }), cur: CS.cur }); toast('Elmentve a saját alapértékeidként'); };
-$('cLoadDef').onclick = () => { const d = ls.get('acrListaar.kalkalap', null); if (!d) { toast('Még nincs mentett alapértéked'); return; } CV = d.v.map((x) => Object.assign(blankV(), x)); CS.cur = d.cur || CS.cur; CS.src = 'Saját alapértékek betöltve.'; CS.u = ''; saveCalc(); renderCalcTop(); renderCalc(); };
+$('cLoadDef').onclick = () => { const d = ls.get('acrListaar.kalkalap', null); if (!d) { toast('Még nincs mentett alapértéked'); return; } CV = d.v.map((x) => mig(Object.assign(blankV(), x))); CS.cur = d.cur || CS.cur; CS.src = 'Saját alapértékek betöltve.'; CS.u = ''; saveCalc(); renderCalcTop(); renderCalc(); };
 $('cClear').onclick = () => { if (!confirm('Kiüríted a kalkulátor összes mezőjét?')) return; CV = [blankV(), blankV(), blankV()]; CS.src = ''; CS.u = ''; saveCalc(); renderCalcTop(); renderCalc(); };
 $('calc').addEventListener('change', (e) => {
   const k = e.target.closest('[data-key]'); if (k) { KEYS = RES.map((r) => r[0]).filter((id) => (id === k.dataset.key ? k.checked : KEYS.includes(id))); ls.set('acrListaar.kulcs', KEYS); renderCalc(); return; }
