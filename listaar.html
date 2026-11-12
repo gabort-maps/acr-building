@@ -1,4 +1,4 @@
-<!doctype html><html lang="hu"><head><!-- ACR listaár v1 --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="hu"><head><!-- ACR listaár v2 --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <script>// Ugyanaz a belépés és adatbázis (Supabase, public.docs), mint az acr-admin.html-ben.
 // ?helyi=1 : helyi próbamód, az adat csak ebben a böngészőben (localStorage) van.
@@ -93,129 +93,185 @@
 <style>
 :root {
   --bg:#f3f4f2; --panel:#ffffff; --fg:#1b2125; --mute:#5b666c; --line:#d3d9dc; --soft:#e9edef; --acc:#1d5d8a; --accfg:#ffffff;
-  --warn:#b45309; --warnbg:#fef3c7; --ok:#15803d; --okbg:#e3f4e8; --inbg:#fffcec; --inbd:#b6bfc4; --head:#e3e9ed; --badbg:#fde8e8; --badfg:#b91c1c; --spec:#f3e8ff; --specfg:#6b21a8;
+  --warn:#b45309; --warnbg:#fef3c7; --ok:#15803d; --okbg:#e3f4e8; --inbg:#fffcec; --inbd:#b6bfc4; --head:#e3e9ed; --badfg:#b91c1c;
+  --spec:#f3e8ff; --specfg:#6b21a8; --set:#5b4a8a; --setbg:#efecf7; --setline:#cfc6e6;
   --sans:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg:#14181b; --panel:#1c2226; --fg:#e4e7e8; --mute:#9aa5ab; --line:#333d43; --soft:#262e33; --acc:#7db4e0; --accfg:#0d1316;
-  --warn:#fbbf24; --warnbg:#3a2e0c; --ok:#4ade80; --okbg:#173022; --inbg:#2a3035; --inbd:#55626a; --head:#273036; --badbg:#4a1f1f; --badfg:#fca5a5; --spec:#2e2140; --specfg:#d8b4fe; color-scheme:dark } }
+  --warn:#fbbf24; --warnbg:#3a2e0c; --ok:#4ade80; --okbg:#173022; --inbg:#2a3035; --inbd:#55626a; --head:#273036; --badfg:#fca5a5;
+  --spec:#2e2140; --specfg:#d8b4fe; --set:#b8a6ea; --setbg:#221f2e; --setline:#433a5e; color-scheme:dark } }
 :root[data-theme="dark"] {
   --bg:#14181b; --panel:#1c2226; --fg:#e4e7e8; --mute:#9aa5ab; --line:#333d43; --soft:#262e33; --acc:#7db4e0; --accfg:#0d1316;
-  --warn:#fbbf24; --warnbg:#3a2e0c; --ok:#4ade80; --okbg:#173022; --inbg:#2a3035; --inbd:#55626a; --head:#273036; --badbg:#4a1f1f; --badfg:#fca5a5; --spec:#2e2140; --specfg:#d8b4fe; color-scheme:dark }
+  --warn:#fbbf24; --warnbg:#3a2e0c; --ok:#4ade80; --okbg:#173022; --inbg:#2a3035; --inbd:#55626a; --head:#273036; --badfg:#fca5a5;
+  --spec:#2e2140; --specfg:#d8b4fe; --set:#b8a6ea; --setbg:#221f2e; --setline:#433a5e; color-scheme:dark }
 * { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--sans); font-size:14px; line-height:1.4; padding:12px 16px 32px; }
-#app { max-width:1500px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
+body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--sans); font-size:14px; line-height:1.35; padding:10px 16px 28px; }
+#app { max-width:1400px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1fr); gap:10px; }
 #app > *, section > * { min-width:0; }
-.bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
-.bar h1 { font-size:18px; font-weight:600; margin:0; margin-right:auto; }
+section { display:grid; grid-template-columns:minmax(0,1fr); gap:10px; }
+[hidden] { display:none !important; }
+.bar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; }
+.bar h1 { font-size:17px; font-weight:600; margin:0; margin-right:auto; }
+.bar h1 small { font-weight:400; font-size:12px; color:var(--mute); }
 .tabs { display:flex; gap:4px; flex-wrap:wrap; }
-.tabs button { border:1px solid var(--line); background:var(--panel); color:var(--fg); padding:7px 14px; border-radius:6px; cursor:pointer; font:inherit; }
+.tabs button { border:1px solid var(--line); background:var(--panel); color:var(--fg); padding:6px 12px; border-radius:6px; cursor:pointer; font:inherit; display:inline-flex; align-items:center; gap:6px; }
 .tabs button.on { background:var(--acc); color:var(--accfg); border-color:var(--acc); }
-.who { font-size:12px; color:var(--mute); display:flex; flex-wrap:wrap; gap:10px; align-items:center; min-width:0; }
+.tabs button.gear { border-color:var(--setline); color:var(--set); background:var(--setbg); }
+.tabs button.gear.on { background:var(--set); color:#fff; border-color:var(--set); }
+.tabs svg { width:15px; height:15px; }
+.who { font-size:12px; color:var(--mute); display:flex; flex-wrap:wrap; gap:8px; align-items:center; min-width:0; }
 #who { overflow-wrap:anywhere; }
 .who button { border:0; background:none; color:var(--acc); cursor:pointer; text-decoration:underline; font:inherit; padding:0; }
-.card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }
-.card h2 { font-size:15px; margin:0 0 10px; font-weight:600; }
-.filters { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:end; }
-label.f { display:grid; gap:3px; font-size:12px; color:var(--mute); }
-select, input[type=text], textarea { font:inherit; color:var(--fg); background:var(--inbg); border:1px solid var(--inbd); border-radius:6px; padding:6px 8px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+.card h2 { font-size:14px; margin:0 0 6px; font-weight:600; }
+.card.set { background:var(--setbg); border-color:var(--setline); }
+.card.set h2 { color:var(--set); display:flex; align-items:center; gap:6px; }
+.filters { display:flex; flex-wrap:wrap; gap:8px 10px; align-items:end; }
+.filters .sp { margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; }
+label.f { display:grid; gap:2px; font-size:11.5px; color:var(--mute); min-width:0; }
+label.f > select, label.f > input { min-width:0; max-width:100%; }
+select, input[type=text], input[type=date], textarea { font:inherit; font-size:13px; color:var(--fg); background:var(--inbg); border:1px solid var(--inbd); border-radius:5px; padding:4px 6px; }
 select { background:var(--panel); }
-input[type=text].num { width:92px; text-align:right; font-family:var(--mono); }
+input.num { width:100%; min-width:0; text-align:right; font-family:var(--mono); }
+input.num::placeholder { color:var(--mute); opacity:.75; font-style:italic; }
 input[readonly], select:disabled, textarea[readonly] { background:var(--soft); color:var(--mute); }
-textarea { width:100%; min-height:54px; resize:vertical; }
-.btn { border:1px solid var(--line); background:var(--panel); color:var(--fg); padding:6px 12px; border-radius:6px; cursor:pointer; font:inherit; }
+textarea { width:100%; min-height:34px; resize:vertical; }
+.btn { border:1px solid var(--line); background:var(--panel); color:var(--fg); padding:5px 10px; border-radius:6px; cursor:pointer; font:inherit; font-size:13px; white-space:nowrap; }
 .btn.pri { background:var(--acc); color:var(--accfg); border-color:var(--acc); }
 .btn.dan { color:var(--badfg); }
 .btn:disabled { opacity:.5; cursor:default; }
-.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px 14px; }
-.hint { font-size:12px; color:var(--mute); }
-.inh { font-size:11px; color:var(--mute); font-family:var(--mono); }
-.note { background:var(--warnbg); color:var(--fg); border-radius:6px; padding:10px 12px; font-size:13px; }
+.hint { font-size:12px; color:var(--mute); margin:0; }
+.note { background:var(--warnbg); border-radius:6px; padding:8px 10px; font-size:12.5px; }
 .note b { color:var(--warn); }
 .ok { color:var(--ok); } .bad { color:var(--badfg); }
-.tw { overflow-x:auto; }
-table { border-collapse:collapse; width:100%; font-size:13px; }
-th, td { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
-th { background:var(--head); font-weight:600; font-size:12px; position:sticky; top:0; }
-td.n, th.n { text-align:right; font-family:var(--mono); white-space:nowrap; }
-tr.tot td { font-weight:600; background:var(--soft); }
-tr.spec td { background:var(--spec); }
-.tag { display:inline-block; font-size:11px; border-radius:10px; padding:1px 8px; background:var(--soft); color:var(--mute); white-space:nowrap; }
-.tag.spec { background:var(--spec); color:var(--specfg); font-weight:600; }
+.dim { color:var(--mute); }
+.row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+/* általános feltételek: mátrix */
+.gm { display:grid; grid-template-columns:minmax(90px,1.1fr) repeat(6,minmax(64px,1fr)); gap:4px 6px; align-items:center; }
+.gm .h { font-size:11px; color:var(--mute); text-align:right; }
+.gm .rl { font-size:12.5px; font-weight:500; }
+.gm .ml { display:none; }
+@media (max-width:720px) {
+  .gm { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .gm .h { display:none; }
+  .gm .rl { grid-column:1/-1; margin-top:4px; }
+  .gm .ml { display:block; font-size:11px; color:var(--mute); }
+  .gm .c { display:grid; gap:1px; }
+}
+/* egységtábla */
+details.units > summary { cursor:pointer; font-weight:600; font-size:13.5px; padding:2px 0; list-style-position:inside; }
+details.units > summary .dim { font-weight:400; font-size:12px; }
+table.ut { border-collapse:collapse; width:100%; font-size:12.5px; margin-top:6px; }
+.ut th, .ut td { border-bottom:1px solid var(--line); padding:4px 6px; text-align:left; vertical-align:top; }
+.ut th { background:var(--head); font-weight:600; font-size:11.5px; }
+.ut td.n, .ut th.n { text-align:right; font-family:var(--mono); white-space:nowrap; }
+.ut tr.spec td { background:var(--spec); }
+.ut tr.ed td { background:var(--soft); }
+.tag { display:inline-block; font-size:10.5px; border-radius:9px; padding:0 7px; background:var(--soft); color:var(--mute); white-space:nowrap; }
+.tag.spec { background:var(--spec); color:var(--specfg); font-weight:600; white-space:normal; }
 .tag.av { background:var(--okbg); color:var(--ok); }
 .tag.re { background:var(--head); color:var(--fg); }
-.dim { color:var(--mute); }
-tr.ed td { background:var(--soft); }
-.calc td, .calc th { white-space:nowrap; }
-.calc td.lab { white-space:normal; min-width:240px; }
-.calc input[type=text], .calc select { width:100%; min-width:110px; }
-.calc tr.sec td { background:var(--head); font-weight:600; font-size:12px; }
-.calc td.res { font-family:var(--mono); text-align:right; }
-.calc td.best { color:var(--ok); font-weight:600; }
-#toast { position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:var(--fg); color:var(--bg); padding:8px 14px; border-radius:6px; opacity:0; transition:opacity .2s; pointer-events:none; font-size:13px; }
+@media (max-width:940px) {
+  .ut thead { display:none; }
+  .ut, .ut tbody { display:block; }
+  .ut tr { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:2px 8px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .ut td { border:0; padding:1px 0; }
+  .ut td.full { grid-column:1/-1; }
+  .ut td.n { text-align:left; }
+  .ut td[data-l]::before { content:attr(data-l); display:block; font-family:var(--sans); font-size:10.5px; color:var(--mute); }
+  .ut tr.ed td { grid-column:1/-1; }
+}
+/* kalkulátor */
+.cg { border:1px solid var(--line); border-radius:6px; margin-top:6px; }
+.cg > summary { cursor:pointer; padding:5px 8px; font-weight:600; font-size:12.5px; background:var(--head); border-radius:6px; }
+.cg[open] > summary { border-radius:6px 6px 0 0; }
+.cg > div { padding:2px 8px 4px; }
+.crow { display:grid; grid-template-columns:minmax(150px,1.5fr) repeat(3,minmax(0,1fr)); gap:4px 8px; align-items:center; padding:3px 0; border-bottom:1px solid var(--soft); }
+.crow:last-child { border-bottom:0; }
+.crow .cl { font-size:12.5px; }
+.crow .cl small { display:block; color:var(--mute); font-size:11px; }
+.crow input, .crow select { width:100%; min-width:0; }
+.crow .r { text-align:right; font-family:var(--mono); font-size:12.5px; }
+.crow .r.best { color:var(--ok); font-weight:600; }
+.crow.hd { font-weight:600; font-size:12px; color:var(--mute); border-bottom:1px solid var(--line); }
+.crow.hd > div:not(.cl) { text-align:center; }
+.crow .lp { font-size:11px; color:var(--mute); text-align:right; }
+@media (max-width:640px) { .crow { grid-template-columns:repeat(3,minmax(0,1fr)); } .crow .cl { grid-column:1/-1; } .crow.hd .cl { display:none; } }
+.keys { display:flex; flex-wrap:wrap; gap:4px 12px; padding:6px 8px; font-size:12px; }
+.keys label { display:flex; gap:4px; align-items:center; }
+#toast { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); background:var(--fg); color:var(--bg); padding:7px 12px; border-radius:6px; opacity:0; transition:opacity .2s; pointer-events:none; font-size:13px; z-index:20; }
 #toast.on { opacity:1; }
-.printonly { display:none; }
-@media (max-width:700px) { input[type=text].num { width:78px; } .calc td.lab { min-width:160px; } }
+#printv { display:none; }
+@page { size:A4 landscape; margin:10mm; }
 @media print {
-  body { background:#fff; color:#000; padding:0; font-size:11px; }
-  .noprint, .tabs, .who, .filters, #gen, .btn, #toast { display:none !important; }
-  .printonly { display:block; }
-  .card { border:0; padding:0; }
-  th { position:static; background:#eee; }
-  tr.spec td { background:#f3e8ff; }
+  body { background:#fff; color:#000; padding:0; font-size:9pt; }
+  #app, #toast { display:none !important; }
+  #printv { display:block; }
+  #printv h1 { font-size:13pt; margin:0 0 2pt; }
+  #printv .meta { font-size:8pt; color:#444; margin:0 0 6pt; }
+  #printv h2 { font-size:10pt; margin:8pt 0 3pt; }
+  #printv table { border-collapse:collapse; width:100%; font-size:8pt; }
+  #printv th, #printv td { border-bottom:.5pt solid #bbb; padding:2pt 4pt; text-align:left; vertical-align:top; }
+  #printv th { background:#eee; font-weight:600; }
+  #printv td.n, #printv th.n { text-align:right; white-space:nowrap; }
+  #printv thead { display:table-header-group; }
+  #printv tr { break-inside:avoid; }
+  #printv tr.spec td { background:#f3e8ff; }
+  #printv .asis { margin-top:8pt; font-size:8pt; border:.5pt solid #bbb; padding:4pt 6pt; break-inside:avoid; }
 }
 </style>
 </head>
 <body>
 <div id="app">
   <div class="bar">
-    <h1>ACR listaár <span class="dim" style="font-weight:400;font-size:13px">Horizont Park, Daróczi út 1–3</span></h1>
-    <div class="tabs noprint" role="tablist">
-      <button data-tab="list" class="on">Listaár</button><button data-tab="calc">Ajánlatkalkulátor</button><button data-tab="set">Beállítások</button>
+    <h1>ACR listaár <small>Horizont Park, Daróczi út 1–3</small></h1>
+    <div class="tabs" role="tablist">
+      <button data-tab="list" class="on">Listaár</button>
+      <button data-tab="calc">Ajánlatkalkulátor</button>
+      <button data-tab="set" class="gear" title="Beállítások"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Beállítások</button>
     </div>
-    <div class="who noprint"><span id="who">csatlakozás…</span><button id="out" hidden>Kilépés</button></div>
+    <div class="who"><span id="who">csatlakozás…</span><button id="out" hidden>Kilépés</button></div>
   </div>
-  <div id="ro" class="note noprint" hidden></div>
+  <div id="ro" class="note" hidden></div>
 
-  <!-- LISTAÁR -->
   <section id="t-list">
-    <div class="card filters noprint">
+    <div class="card filters">
       <label class="f">Épület<select id="fB"></select></label>
       <label class="f">Szint<select id="fK"></select></label>
       <label class="f">Szárny<select id="fW"></select></label>
-      <label class="f">Mutatott helyiségek<select id="fS"><option value="ker">Bérelhető (közös és gépészet nélkül)</option><option value="av">Csak kiadható</option><option value="all">Minden helyiség</option></select></label>
-      <label class="f">Havi összeg ennél a futamidőnél<select id="fT"><option value="r1">1 év</option><option value="r2">2 év</option><option value="r3">3 év</option><option value="r4" selected>3+ év</option></select></label>
+      <label class="f">Mutatott helyiségek<select id="fS"><option value="ker">Bérelhető</option><option value="av">Csak kiadható</option><option value="all">Minden helyiség</option></select></label>
       <label class="f">Kijelzés pénzneme<select id="fC"><option value="">ahogy beállították</option><option>EUR</option><option>HUF</option></select></label>
-      <span style="margin-left:auto;display:flex;gap:8px"><button class="btn" id="csv">CSV letöltés</button><button class="btn" id="prn">Nyomtatás / PDF</button></span>
+      <span class="sp"><button class="btn" id="xls">Excel letöltés</button><button class="btn" id="prn">Nyomtatás / PDF</button></span>
     </div>
-    <div class="printonly"><h2 id="pTitle"></h2><p id="pMeta" class="hint"></p></div>
     <div class="card" id="gen"></div>
-    <div class="card"><div class="tw" id="tbl"></div></div>
+    <div class="card"><details class="units" id="units"><summary id="usum"></summary><div id="tbl"></div></details></div>
     <div class="note" id="asis"></div>
   </section>
 
-  <!-- KALKULÁTOR -->
   <section id="t-calc" hidden>
-    <div class="card noprint">
-      <h2>Ajánlatkalkulátor: nettó effektív bérleti díj, 3 változat</h2>
-      <p class="hint" style="margin:0 0 10px">Az A, B, C oszlop forgatókönyv ugyanarra a bérleményre, nem három külön ajánlat. A számítás az ACR_ajanlat_kalkulator_v4.xlsx képleteit követi. A bevitt értékek csak ebben a böngészőben maradnak meg.</p>
+    <div class="card">
+      <h2>Ajánlatkalkulátor: nettó effektív bérleti díj</h2>
+      <p class="hint" style="margin-bottom:6px">Az A, B, C ugyanannak a bérleménynek három forgatókönyve. Egység nélkül általános kalkulátorként is használható. A bevitt értékek csak ebben a böngészőben maradnak meg.</p>
       <div class="filters">
-        <label class="f">Egység betöltése a listaárból<select id="cU" style="min-width:280px"></select></label>
-        <label class="f">Melyik változatba<select id="cV"><option value="all">mind a háromba</option><option value="0">A</option><option value="1">B</option><option value="2">C</option></select></label>
+        <label class="f">Épület<select id="cB"></select></label>
+        <label class="f">Szint<select id="cK"></select></label>
+        <label class="f">Szárny<select id="cW"></select></label>
+        <label class="f">Egység<select id="cU"></select></label>
+        <label class="f">Pénznem<select id="cCur"><option>EUR</option><option>HUF</option></select></label>
         <button class="btn pri" id="cLoad">Betöltés</button>
-        <button class="btn" id="cReset">Alapértékek</button>
+        <span class="sp"><button class="btn" id="cSaveDef" title="A mostani bemeneteket elmenti a saját alapértékeidként (ebben a böngészőben)">Mentés alapértékként</button><button class="btn" id="cLoadDef">Alapértékek betöltése</button><button class="btn dan" id="cClear">Ürítés</button></span>
       </div>
-      <p class="hint" id="cSrc" style="margin:8px 0 0"></p>
+      <p class="hint" id="cSrc" style="margin-top:6px"></p>
     </div>
-    <div class="card"><div class="tw"><table class="calc" id="calc"></table></div></div>
-    <div class="note"><b>Belső használatra.</b> A bérlőnek a feltételek adhatók ki (ajánlati díj, futamidő, díjmentes hónapok, fit-out hozzájárulás, közös terület aránya, üzemeltetési díj). Az ügynöki díj, a diszkontált nettó effektív díj és a bérbeadó nettó bevétele belső szám.</div>
+    <div class="card" id="calc"></div>
   </section>
 
-  <!-- BEÁLLÍTÁSOK -->
   <section id="t-set" hidden>
-    <div class="card" id="setc"></div>
+    <div class="card set" id="setc"></div>
   </section>
 </div>
+<div id="printv"></div>
 <div id="toast"></div>
 
 <script>
@@ -227,29 +283,30 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const nf = (v, d = 2) => (v == null || !isFinite(v) ? '–' : (+v).toLocaleString('hu-HU', { minimumFractionDigits: d, maximumFractionDigits: d }));
 const numIn = (s) => { if (s == null) return undefined; const t = String(s).replace(/\s/g, '').replace(',', '.'); if (t === '') return undefined; const n = parseFloat(t); return isFinite(n) ? n : NaN; };
-const inVal = (v) => (v == null ? '' : String(v).replace('.', ','));
+const inVal = (v) => (v == null || (typeof v === 'number' && isNaN(v)) ? '' : String(v).replace('.', ','));
 let tt; const toast = (m) => { const t = $('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 3000); };
-const TERMS = [['r1', '1 év'], ['r2', '2 év'], ['r3', '3 év'], ['r4', '3+ év']];
-const PRICE = ['r1', 'r2', 'r3', 'r4', 'sc'];       // a pénznemhez kötött mezők
-const FIELDS = ['cur', ...PRICE, 'cf', 'tw'];
+const ls = { get: (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } };
+const TERMS = [['1', '1 év'], ['2', '2 év'], ['3', '3 év'], ['4', '3+ év']];
+// iroda (bérelhető terület): r1..r4, sc, cf;  terasz: t1..t4, tsc, tcf
+const GRP = { o: { lab: 'Iroda / terület', r: ['r1', 'r2', 'r3', 'r4'], sc: 'sc', cf: 'cf' }, t: { lab: 'Terasz', r: ['t1', 't2', 't3', 't4'], sc: 'tsc', cf: 'tcf' } };
+const PRICE = ['r1', 'r2', 'r3', 'r4', 'sc', 't1', 't2', 't3', 't4', 'tsc'];   // a pénznemhez kötött mezők
+const FIELDS = ['cur', ...PRICE, 'cf', 'tcf'];
 const STL = { rented: ['Bérelt', 're'], available: ['Kiadható', 'av'], own: ['Saját használat', ''], common: ['Közös terület', ''], '': ['Jelöletlen', ''] };
 const MEAS = { belso: 'Belső falsík', falkozep: 'Falközép', kulso: 'Külső falsík' };
-const DEF_ASIS = 'Minden ár a terület jelenlegi (as-is) állapotára vonatkozik. Bármilyen átalakítás, kiépítés vagy egyéb módosítás az árat módosítja. A listaár tájékoztató jellegű, nem ajánlat és nem szerződés; a végleges feltételeket a bérleti szerződés rögzíti. Az árak nettó árak, az ÁFA-t nem tartalmazzák.';
-// B és D épületben a helyiségek nincsenek kategorizálva: a közös jellegű helyiségeket név szerint szűrjük, ha az adminban nincs állapotuk
+const DEF_ASIS = 'Minden ár a terület jelenlegi (as-is) állapotára vonatkozik. Bármilyen átalakítás, kiépítés vagy egyéb módosítás az árat módosítja. A listaár tájékoztató jellegű, nem ajánlat és nem szerződés; a végleges feltételeket a bérleti szerződés rögzíti. Az árak nettó árak, az ÁFA-t nem tartalmazzák. A terasz csak irodával együtt bérelhető, a futamidő az irodáéval azonos.';
 const COMMONRX = /^(wc|mosdó|zu?h?anyzó|lépcsőház|liftakna|lift ?gh|liftgépház|közl|közekedő|folyosó|átjáró|előtér|előcsarnok|takarító|tetőkijárat|antenna|mérő|gépészet|eü\. fülke|öltöző|hasz\. kív|kompressor|gáz tároló)/i;
 
 let DB = null, RULES = {}, OV = {}, SET = {}, dbReady = false;
-const S = { tab: 'list', b: 'A', k: '*', w: '*', show: 'ker', term: 'r4', cur: '', edit: null };
-try { const j = JSON.parse(localStorage.getItem('acrListaar.nezet') || 'null'); if (j) Object.assign(S, j, { edit: null, tab: j.tab || 'list' }); } catch (e) { }
-const saveView = () => { try { localStorage.setItem('acrListaar.nezet', JSON.stringify({ tab: S.tab, b: S.b, k: S.k, w: S.w, show: S.show, term: S.term, cur: S.cur })); } catch (e) { } };
+const S = Object.assign({ tab: 'list', b: 'A', k: '*', w: '*', show: 'ker', cur: '', uOpen: false }, ls.get('acrListaar.nezet2', {}), { edit: null });
 if (!PACKS[S.b]) S.b = 'A';
+const saveView = () => ls.set('acrListaar.nezet2', { tab: S.tab, b: S.b, k: S.k, w: S.w, show: S.show, cur: S.cur, uOpen: S.uOpen });
 
-// ---------- jogosultság ----------
 const editors = () => (SET.editors || []).map((x) => String(x).trim().toLowerCase()).filter(Boolean);
 const canEdit = () => dbReady && (!editors().length || editors().includes(String(window.LPDB.email()).toLowerCase()));
 
-// ---------- terület (ugyanaz a logika, mint az adminban) ----------
+// ---------- terület (az admin logikája) ----------
 for (const [bid, p] of Object.entries(PACKS)) for (const r of p.rooms) r.b = bid;
+const ALL = Object.values(PACKS).flatMap((p) => p.rooms);
 const isTer = (r) => r.cat === 'Terasz / külső';
 function ar0(r) { if (!r.par) return r.a; if (r.rem) { const P = PACKS[r.b].parents[r.par]; let s = 0; for (const x of PACKS[r.b].rooms) if (x.par === r.par && !x.rem) s += (OV[x.id] && +OV[x.id].a) || 0; return Math.max(0, +((P ? P.a : 0) - s).toFixed(2)); } const o = OV[r.id]; return o && o.a ? +o.a : 0; }
 const WSUM = {};
@@ -260,8 +317,12 @@ const area = (r) => ar0(r) * mf(r);
 const stOf = (r) => { const o = OV[r.id]; return (o && o.s) || (PACKS[r.b].def || {})[r.cat] || ''; };
 const nameOf = (r) => (OV[r.id] && OV[r.id].n) || r.name;
 const isUnit = (r) => { const s = stOf(r); if (s === 'common' || s === 'own') return false; if (s) return true; if (r.cat === 'Bérelhető' || isTer(r)) return true; if (r.cat) return false; return !COMMONRX.test(nameOf(r).trim()); };
+const hidden0 = (r) => r.par && !r.rem && !(OV[r.id] && +OV[r.id].a);   // összevont sor nulla területű része
 const lvlName = (b, k) => (PACKS[b].lvl.find((l) => l[0] === k) || [k, k])[1];
 const wingName = (b, w) => (PACKS[b].wings.find((x) => x[0] === w) || [w, w])[1];
+const lvlsOf = (b) => { const ks = new Set(PACKS[b].rooms.map((r) => r.k)); return PACKS[b].lvl.filter((l) => ks.has(l[0])); };
+const wingsOf = (b, k) => { const ws = new Set(PACKS[b].rooms.filter((r) => k === '*' || r.k === k).map((r) => r.w)); return PACKS[b].wings.filter((w) => ws.has(w[0])); };
+const inScope = (r, b, k, w) => r.b === b && (k === '*' || r.k === k) && (w === '*' || r.w === w);
 
 // ---------- árszabályok: épület > szint > szárny > egység ----------
 const keyB = (b) => 'r:' + b, keyF = (b, k) => 'r:' + b + '|' + k, keyW = (b, k, w) => 'r:' + b + '|' + k + '|' + w, keyU = (id) => 'u:' + id;
@@ -275,13 +336,14 @@ function merge(chain) {
   }
   return { v: acc, src };
 }
-const chainFor = (b, k, w, id) => [['b', RULES[keyB(b)]], ['f', k && k !== '*' ? RULES[keyF(b, k)] : null], ['w', k && k !== '*' && w && w !== '*' ? RULES[keyW(b, k, w)] : null], ['u', id ? RULES[keyU(id)] : null]];
+const chainFor = (b, k, w, id) => [['b', RULES[keyB(b)]], ['f', k !== '*' ? RULES[keyF(b, k)] : null], ['w', k !== '*' && w !== '*' ? RULES[keyW(b, k, w)] : null], ['u', id ? RULES[keyU(id)] : null]];
 function priceOf(r) {
-  const m = merge(chainFor(r.b, r.k, r.w, r.id)), v = m.v, u = RULES[keyU(r.id)];
-  const net = area(r), tw = isTer(r) ? (v.tw != null ? +v.tw : 100) : 100, base = net * tw / 100, cf = v.cf != null ? +v.cf : 0, billed = base * (1 + cf / 100);
-  return { v, src: m.src, spec: !!u, unote: u && u.note, net, tw, base, cf, billed };
+  const m = merge(chainFor(r.b, r.k, r.w, r.id)), v = m.v, g = GRP[isTer(r) ? 't' : 'o'], u = RULES[keyU(r.id)];
+  const num = (f) => (v[f] != null ? +v[f] : null);
+  return { cur: v.cur || null, rent: g.r.map(num), sc: num(g.sc), cf: num(g.cf), spec: !!u, unote: u && u.note, net: area(r), g };
 }
-const conv = (x, from) => { const to = S.cur || from, rate = +SET.rate; if (x == null || !from || to === from) return { x, cur: from }; if (!rate) return { x: null, cur: to }; return { x: from === 'EUR' ? x * rate : x / rate, cur: to }; };
+function conv(x, from) { const to = S.cur || from, rate = +SET.rate; if (x == null || !from || to === from) return { x, cur: from }; if (!rate) return { x: null, cur: to }; return { x: from === 'EUR' ? x * rate : x / rate, cur: to }; }
+const money = (x, cur) => { if (x == null) return '–'; const c = conv(x, cur); return c.x == null ? '<span class="dim" title="Nincs árfolyam a Beállításokban">árfolyam?</span>' : nf(c.x, c.cur === 'HUF' ? 0 : 2); };
 
 // ---------- adatbázis ----------
 window.LPDB.open().then((db) => {
@@ -296,288 +358,340 @@ async function put(id, data) {
   catch (e) { toast('Hiba a mentésnél: ' + (e && e.message || e)); return false; }
 }
 
-// ---------- szűrők ----------
-function lvlsOf(b) { const ks = new Set(PACKS[b].rooms.map((r) => r.k)); return PACKS[b].lvl.filter((l) => ks.has(l[0])); }
-function wingsOf(b, k) { const ws = new Set(PACKS[b].rooms.filter((r) => k === '*' || r.k === k).map((r) => r.w)); return PACKS[b].wings.filter((w) => ws.has(w[0])); }
-function renderFilters() {
-  $('fB').innerHTML = Object.entries(PACKS).map(([id, p]) => `<option value="${id}"${id === S.b ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
-  if (S.k !== '*' && !lvlsOf(S.b).some((l) => l[0] === S.k)) S.k = '*';
-  $('fK').innerHTML = `<option value="*">Minden szint</option>` + lvlsOf(S.b).map((l) => `<option value="${esc(l[0])}"${l[0] === S.k ? ' selected' : ''}>${esc(l[1])}</option>`).join('');
-  if (S.k === '*' || (S.w !== '*' && !wingsOf(S.b, S.k).some((w) => w[0] === S.w))) S.w = '*';
-  $('fW').innerHTML = `<option value="*">${S.k === '*' ? 'Előbb válassz szintet' : 'Minden szárny'}</option>` + (S.k === '*' ? '' : wingsOf(S.b, S.k).map((w) => `<option value="${esc(w[0])}"${w[0] === S.w ? ' selected' : ''}>${esc(w[1])}</option>`).join(''));
-  $('fW').disabled = S.k === '*';
-  $('fS').value = S.show; $('fT').value = S.term; $('fC').value = S.cur;
+// ---------- hely választó (listaár és kalkulátor közös) ----------
+function fillPlace(selB, selK, selW, st, opt = {}) {
+  selB.innerHTML = (opt.none ? `<option value="">${opt.none}</option>` : '') + Object.entries(PACKS).map(([id, p]) => `<option value="${id}"${id === st.b ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+  const nob = !st.b;
+  if (nob || (st.k !== '*' && !lvlsOf(st.b).some((l) => l[0] === st.k))) st.k = '*';
+  selK.innerHTML = `<option value="*">Minden szint</option>` + (nob ? '' : lvlsOf(st.b).map((l) => `<option value="${esc(l[0])}"${l[0] === st.k ? ' selected' : ''}>${esc(l[1])}</option>`).join(''));
+  if (st.k === '*' || (st.w !== '*' && !wingsOf(st.b, st.k).some((w) => w[0] === st.w))) st.w = '*';
+  selW.innerHTML = `<option value="*">${st.k === '*' ? 'előbb szint' : 'Minden szárny'}</option>` + (st.k === '*' ? '' : wingsOf(st.b, st.k).map((w) => `<option value="${esc(w[0])}"${w[0] === st.w ? ' selected' : ''}>${esc(w[1])}</option>`).join(''));
+  selK.disabled = nob; selW.disabled = st.k === '*';
 }
-const scopeLabel = () => [PACKS[S.b].name, S.k !== '*' ? lvlName(S.b, S.k) : null, S.w !== '*' ? wingName(S.b, S.w) : null].filter(Boolean).join(' · ');
+const scopeLabel = (b = S.b, k = S.k, w = S.w) => [PACKS[b].name, k !== '*' ? lvlName(b, k) : null, w !== '*' ? wingName(b, w) : null].filter(Boolean).join(' · ');
 const scopeKey = () => (S.w !== '*' ? keyW(S.b, S.k, S.w) : S.k !== '*' ? keyF(S.b, S.k) : keyB(S.b));
 const scopeLv = () => (S.w !== '*' ? 'w' : S.k !== '*' ? 'f' : 'b');
 
-// ---------- árszerkesztő űrlap (általános és egyedi) ----------
-function formHtml(own, inh, opts) {
-  const ro = !canEdit() ? ' readonly' : '', dis = !canEdit() ? ' disabled' : '';
-  const ph = (f) => { if (inh.v[f] == null) return ''; const unit = f === 'cf' || f === 'tw' ? '%' : (inh.v.cur || ''); return `${nf(+inh.v[f])} ${unit} (${LEVEL[inh.src[f]]})`; };
+// ---------- ár űrlap (mátrix: sor = iroda / terasz, oszlop = futamidő, üzem. díj, közös %) ----------
+function gmHtml(own, inh, groups) {
+  const ro = canEdit() ? '' : ' readonly';
+  const cell = (f, lab, isPct) => { const iv = inh.v[f], ph = own[f] == null && iv != null ? nf(+iv) : '';
+    return `<div class="c"><span class="ml">${lab}</span><input class="num" type="text" inputmode="decimal" data-f="${f}" value="${esc(inVal(own[f]))}" placeholder="${ph}"${ph ? ` title="örökölt: ${nf(+iv)}${isPct ? ' %' : ' ' + (inh.v.cur || '')} (${LEVEL[inh.src[f]]})"` : ''}${ro} aria-label="${lab}"></div>`; };
   const cur = own.cur || '', icur = inh.v.cur;
-  const num = (f, lab) => `<label class="f">${lab}<input type="text" class="num" inputmode="decimal" data-f="${f}" value="${esc(inVal(own[f]))}" placeholder="${esc(own[f] == null && inh.v[f] != null ? nf(+inh.v[f]) : '')}"${ro}><span class="inh">${own[f] == null && inh.v[f] != null ? 'örökölt: ' + esc(ph(f)) : '&nbsp;'}</span></label>`;
-  return `<div class="grid">
-    <label class="f">Pénznem<select data-f="cur"${dis}><option value="">${icur ? 'örökölt: ' + icur : 'válassz'}</option>${['EUR', 'HUF'].map((c) => `<option${c === cur ? ' selected' : ''}>${c}</option>`).join('')}</select><span class="inh">a bérleti és az üzemeltetési díjé</span></label>
-    ${TERMS.map(([f, lab]) => num(f, `Bérleti díj, ${lab} /m²/hó`)).join('')}
-    ${num('sc', 'Üzemeltetési díj /m²/hó')}
-    ${num('cf', 'Közös terület szorzó, %')}
-    ${opts.terrace ? num('tw', 'Terasz beszámítása, %') : ''}
-  </div>
-  <label class="f" style="margin-top:10px">${opts.unit ? 'Az egyedi feltétel leírása (a listában és a nyomtatásban megjelenik)' : 'Megjegyzés ehhez a részhez'}<textarea data-f="note"${ro} placeholder="${opts.unit ? 'pl. saját bejárat, más állapot, csak egyben adható ki' : ''}">${esc(own.note || '')}</textarea></label>`;
+  return `<div class="row" style="margin-bottom:6px"><label class="f" style="grid-auto-flow:column;align-items:center;gap:6px">Pénznem<select data-f="cur"${canEdit() ? '' : ' disabled'}><option value="">${icur ? 'örökölt: ' + icur : 'válassz'}</option>${['EUR', 'HUF'].map((c) => `<option${c === cur ? ' selected' : ''}>${c}</option>`).join('')}</select></label><span class="hint">díjak ${cur || icur || '…'}/m²/hó-ban · a dőlt szürke szám örökölt érték</span></div>
+  <div class="gm"><div></div>${TERMS.map(([, l]) => `<div class="h">${l}</div>`).join('')}<div class="h">Üzem. díj</div><div class="h">Közös %</div>
+  ${groups.map((gk) => { const g = GRP[gk]; return `<div class="rl">${g.lab}</div>${g.r.map((f, i) => cell(f, TERMS[i][1])).join('')}${cell(g.sc, 'Üzem. díj')}${cell(g.cf, 'Közös %', true)}`; }).join('')}</div>`;
 }
 function readForm(box) {
   const o = {}; let bad = '';
-  box.querySelectorAll('[data-f]').forEach((el) => { const f = el.dataset.f; if (f === 'cur' || f === 'note') { if (el.value.trim()) o[f] = el.value.trim(); return; } const n = numIn(el.value); if (n === undefined) return; if (isNaN(n) || n < 0) bad = bad || f; else o[f] = n; });
-  if (o.cf != null && o.cf > 50) bad = bad || 'cf';
+  box.querySelectorAll('[data-f]').forEach((el) => { const f = el.dataset.f; if (f === 'cur' || f === 'note') { if (el.value.trim()) o[f] = el.value.trim(); return; } const n = numIn(el.value); if (n === undefined) return; if (isNaN(n) || n < 0 || ((f === 'cf' || f === 'tcf') && n > 50)) bad = bad || el.getAttribute('aria-label'); else o[f] = n; });
   return { o, bad };
 }
-const FLAB = { r1: 'bérleti díj (1 év)', r2: 'bérleti díj (2 év)', r3: 'bérleti díj (3 év)', r4: 'bérleti díj (3+ év)', sc: 'üzemeltetési díj', cf: 'közös terület szorzó (0–50%)', tw: 'terasz beszámítás' };
-function priceWarn(v) {
+function priceWarn(v, groups) {
   const w = [];
-  if (PRICE.some((f) => v[f] != null) && !v.cur) w.push('nincs pénznem megadva');
-  if (v.cur && TERMS.some(([f]) => v[f] == null)) w.push('nem minden futamidőhöz van ár');
-  const r = TERMS.map(([f]) => v[f]).filter((x) => x != null);
-  if (r.some((x, i) => i && x > r[i - 1])) w.push('a hosszabb futamidő ára magasabb, mint a rövidebbé');
+  if (PRICE.some((f) => v[f] != null) && !v.cur) w.push('nincs pénznem');
+  for (const gk of groups) { const g = GRP[gk], r = g.r.map((f) => (v[f] != null ? +v[f] : null)), lab = g.lab.toLowerCase();
+    if (r.some((x) => x != null) && r.some((x) => x == null)) w.push(`${lab}: nem minden futamidőhöz van ár`);
+    const q = r.filter((x) => x != null); if (q.some((x, i) => i && x > q[i - 1])) w.push(`${lab}: a hosszabb futamidő ára magasabb`); }
   return w;
 }
+const hasTerrace = (b, k, w) => PACKS[b].rooms.some((r) => isTer(r) && inScope(r, b, k, w) && isUnit(r));
 
 function renderGen() {
-  const key = scopeKey(), own = RULES[key] || {}, lv = scopeLv();
+  const key = scopeKey(), own = RULES[key] || {}, lv = scopeLv(), groups = hasTerrace(S.b, S.k, S.w) ? ['o', 't'] : ['o'];
   const parent = lv === 'b' ? { v: {}, src: {} } : merge(chainFor(S.b, lv === 'w' ? S.k : '*', '*', null));
-  const eff = merge(chainFor(S.b, S.k, S.w, null)), warn = priceWarn(eff.v);
-  const hasTer = PACKS[S.b].rooms.some((r) => isTer(r) && (S.k === '*' || r.k === S.k) && (S.w === '*' || r.w === S.w));
+  const warn = priceWarn(merge(chainFor(S.b, S.k, S.w, null)).v, groups);
   $('gen').innerHTML = `<h2>Általános feltételek: ${esc(scopeLabel())}</h2>
-    <p class="hint" style="margin:-4px 0 10px">${lv === 'b' ? 'Az épület alapára. A szint és a szárny ettől eltérhet; amit ott üresen hagysz, az innen öröklődik.' : 'Csak az eltérést írd be. Az üres mező a fölötte lévő szintről öröklődik (szürkén látszik).'} Az ár a nettó + közös területre (számlázott m²) jár, mint a kalkulátorban.</p>
-    <div id="genf">${formHtml(own, parent, { terrace: hasTer })}</div>
-    ${warn.length ? `<p class="bad" style="margin:8px 0 0">Figyelem: ${esc(warn.join('; '))}.</p>` : ''}
-    <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap" class="noprint">
-      <button class="btn pri" id="genSave"${canEdit() ? '' : ' disabled'}>Mentés</button>
-      ${RULES[key] ? `<button class="btn dan" id="genDel"${canEdit() ? '' : ' disabled'}>${lv === 'b' ? 'Épület árainak törlése' : 'Eltérés törlése (öröklés)'}</button><span class="hint">utoljára: ${esc(own.by || '?')}, ${esc((own.at || '').slice(0, 16).replace('T', ' '))}</span>` : ''}
-    </div>`;
-  const box = $('genf');
-  $('genSave').onclick = async () => { const { o, bad } = readForm(box); if (bad) { toast('Hibás érték: ' + FLAB[bad]); return; } if (!Object.keys(o).length) { if (RULES[key]) await put(key, null); return; } await put(key, Object.assign({ lv, b: S.b, k: S.k === '*' ? null : S.k, w: S.w === '*' ? null : S.w }, o)); };
+    <p class="hint" style="margin-bottom:6px">${lv === 'b' ? 'Az épület alapára. Szintre és szárnyra szűkítve csak az eltérést kell beírni.' : 'Csak az eltérést írd be; az üres mező a fölötte lévő szintről öröklődik.'}${groups.length > 1 ? ' A terasz csak irodával együtt bérelhető, a futamidő az irodáéval azonos.' : ''}</p>
+    <div id="genf">${gmHtml(own, parent, groups)}
+    <details style="margin-top:6px"${own.note ? ' open' : ''}><summary class="hint" style="cursor:pointer">Megjegyzés ehhez a részhez${own.note ? ': ' + esc(own.note.slice(0, 60)) + (own.note.length > 60 ? '…' : '') : ''}</summary><textarea data-f="note"${canEdit() ? '' : ' readonly'}>${esc(own.note || '')}</textarea></details></div>
+    ${warn.length ? `<p class="bad" style="margin:6px 0 0;font-size:12.5px">Figyelem: ${esc(warn.join('; '))}.</p>` : ''}
+    <div class="row" style="margin-top:8px"><button class="btn pri" id="genSave"${canEdit() ? '' : ' disabled'}>Mentés</button>
+      ${RULES[key] ? `<button class="btn dan" id="genDel"${canEdit() ? '' : ' disabled'}>${lv === 'b' ? 'Épület árainak törlése' : 'Eltérés törlése'}</button><span class="hint">utoljára: ${esc(own.by || '?')}, ${esc((own.at || '').slice(0, 16).replace('T', ' '))}</span>` : ''}</div>`;
+  $('genSave').onclick = async () => { const { o, bad } = readForm($('genf')); if (bad) { toast('Hibás érték: ' + bad); return; } if (!Object.keys(o).length) { if (RULES[key]) await put(key, null); return; } await put(key, Object.assign({ lv, b: S.b, k: S.k === '*' ? null : S.k, w: S.w === '*' ? null : S.w }, o)); };
   if ($('genDel')) $('genDel').onclick = async () => { if (confirm('Törlöd ennek a résznek a beállított árait? Utána a fölötte lévő szint árai érvényesek.')) await put(key, null); };
 }
 
-// ---------- egységtábla ----------
-function unitsInScope() {
-  return PACKS[S.b].rooms.filter((r) => (S.k === '*' || r.k === S.k) && (S.w === '*' || r.w === S.w) && (S.show === 'all' || (S.show === 'av' ? stOf(r) === 'available' && isUnit(r) : isUnit(r))))
-    .filter((r) => !(r.par && !r.rem && !(OV[r.id] && +OV[r.id].a)) || S.show === 'all');
-}
-function money(x, cur) { const c = conv(x, cur); return c.x == null ? (x == null ? '–' : '<span class="dim" title="Nincs árfolyam a Beállításokban">árfolyam?</span>') : nf(c.x, c.cur === 'HUF' ? 0 : 2); }
-function renderTable() {
-  const rows = unitsInScope(), T = S.term, tl = TERMS.find((t) => t[0] === T)[1];
-  const curs = new Set(); let sNet = 0, sBil = 0, sRent = 0, sSc = 0, miss = 0, missSc = 0;
+// ---------- egységek ----------
+const unitsIn = (b, k, w, show) => PACKS[b].rooms.filter((r) => inScope(r, b, k, w) && (show === 'all' || (!hidden0(r) && (show === 'av' ? stOf(r) === 'available' && isUnit(r) : isUnit(r)))));
+function renderUnits() {
+  const rows = unitsIn(S.b, S.k, S.w, S.show); let nSpec = 0, nNo = 0, sNet = 0;
   const body = rows.map((r) => {
-    const p = priceOf(r), v = p.v, st = STL[stOf(r)] || STL[''], c = v.cur;
-    const rent = v[T] != null ? v[T] * p.billed : null, sc = v.sc != null ? v.sc * p.billed : null;
-    sNet += p.net; sBil += p.billed; if (c) curs.add(conv(1, c).cur);
-    const cr = conv(rent, c), cs = conv(sc, c); if (cr.x != null) sRent += cr.x; else miss++; if (cs.x != null) sSc += cs.x; else if (cr.x != null) missSc++;
-    const editing = S.edit === r.id;
-    return `<tr class="${p.spec ? 'spec' : ''}" data-id="${esc(r.id)}">
-      <td><b>${esc(r.code || '–')}</b> ${esc(nameOf(r))}${isTer(r) ? ` <span class="tag">terasz, ${nf(p.tw, 0)}%-on</span>` : ''}${p.spec ? `<br><span class="tag spec">Egyedi feltétel: az általános feltételek nem vonatkoznak rá</span>${p.unote ? `<br><span class="hint">${esc(p.unote)}</span>` : ''}` : ''}</td>
-      <td>${esc(lvlName(r.b, r.k))}<br><span class="dim">${esc(wingName(r.b, r.w))}</span></td>
-      <td><span class="tag ${st[1]}">${st[0]}</span></td>
-      <td class="n">${nf(p.net)}</td><td class="n">${nf(p.cf, 1)}%</td><td class="n">${nf(p.billed)}</td>
-      ${TERMS.map(([f]) => `<td class="n${f === T ? '' : ' dim'}">${v[f] != null ? money(+v[f], c) : '–'}</td>`).join('')}
-      <td class="n">${v.sc != null ? money(+v.sc, c) : '–'}</td>
-      <td class="n">${money(rent, c)}</td><td class="n">${money(rent != null && sc != null ? rent + sc : null, c)}</td>
-      <td>${c ? esc(conv(1, c).cur) : '<span class="bad">nincs ár</span>'}</td>
-      <td class="noprint" style="white-space:nowrap"><button class="btn" data-ued="${esc(r.id)}">${editing ? 'Bezár' : p.spec ? 'Egyedi ár' : 'Egyedi ár…'}</button> <button class="btn" data-offer="${esc(r.id)}" title="Megnyitás a kalkulátorban">Ajánlat</button></td>
-    </tr>${editing ? `<tr class="ed"><td colspan="16"><div id="uedf">${formHtml(RULES[keyU(r.id)] || {}, merge(chainFor(r.b, r.k, r.w, null)), { unit: true, terrace: isTer(r) })}</div>
-      <p class="hint">Az egyedi ár ennél az egységnél felülírja a szárny, a szint és az épület árát; amit üresen hagysz, az onnan öröklődik. Az egység a listán „Egyedi feltétel: az általános feltételek nem vonatkoznak rá” jelölést kap.</p>
-      <div style="display:flex;gap:8px"><button class="btn pri" data-usave="${esc(r.id)}"${canEdit() ? '' : ' disabled'}>Egyedi ár mentése</button>${RULES[keyU(r.id)] ? `<button class="btn dan" data-udel="${esc(r.id)}"${canEdit() ? '' : ' disabled'}>Egyedi ár törlése</button>` : ''}</div></td></tr>` : ''}`;
+    const p = priceOf(r), st = STL[stOf(r)] || STL[''], c = p.cur; if (p.spec) nSpec++; if (!c || p.rent.every((x) => x == null)) nNo++; sNet += p.net;
+    const ed = S.edit === r.id;
+    return `<tr class="${p.spec ? 'spec' : ''}"><td class="full"><b>${esc(r.code || '–')}</b> ${esc(nameOf(r))}${isTer(r) ? ' <span class="tag">terasz</span>' : ''}${p.spec ? `<br><span class="tag spec">Egyedi feltétel: az általános feltételek nem vonatkoznak rá</span>${p.unote ? ` <span class="hint">${esc(p.unote)}</span>` : ''}` : ''}</td>
+      <td data-l="Szint / szárny">${esc(lvlName(r.b, r.k))}<span class="dim"> · ${esc(wingName(r.b, r.w))}</span></td>
+      <td data-l="Állapot"><span class="tag ${st[1]}">${st[0]}</span></td>
+      <td class="n" data-l="m²">${nf(p.net)}</td>
+      ${p.rent.map((x, i) => `<td class="n" data-l="${TERMS[i][1]}">${money(x, c)}</td>`).join('')}
+      <td class="n" data-l="Üzem. díj">${money(p.sc, c)}</td><td class="n" data-l="Közös %">${p.cf != null ? nf(p.cf, 1) : '–'}</td>
+      <td data-l="Pénznem">${c ? esc(conv(1, c).cur) : '<span class="bad">nincs ár</span>'}</td>
+      <td><button class="btn" data-ued="${esc(r.id)}">${ed ? 'Bezár' : 'Egyedi ár'}</button></td></tr>
+      ${ed ? `<tr class="ed"><td colspan="12"><div id="uedf">${gmHtml(RULES[keyU(r.id)] || {}, merge(chainFor(r.b, r.k, r.w, null)), [isTer(r) ? 't' : 'o'])}
+        <label class="f" style="margin-top:6px">Az egyedi feltétel leírása (a listában, a nyomtatásban és az Excelben megjelenik)<textarea data-f="note"${canEdit() ? '' : ' readonly'} placeholder="pl. saját bejárat, más állapot, csak egyben adható ki">${esc((RULES[keyU(r.id)] || {}).note || '')}</textarea></label></div>
+        <p class="hint" style="margin:4px 0">Az egyedi ár felülírja a szárny, a szint és az épület árát; ami üres, az onnan öröklődik. Jelölés: „az általános feltételek nem vonatkoznak rá”.</p>
+        <div class="row"><button class="btn pri" id="usave"${canEdit() ? '' : ' disabled'}>Egyedi ár mentése</button>${RULES[keyU(r.id)] ? `<button class="btn dan" id="udel"${canEdit() ? '' : ' disabled'}>Egyedi ár törlése</button>` : ''}</div></td></tr>` : ''}`;
   }).join('');
-  const one = curs.size === 1 ? [...curs][0] : null, dec = one === 'HUF' ? 0 : 2;
-  $('tbl').innerHTML = rows.length ? `<table><thead><tr><th>Egység</th><th>Szint / szárny</th><th>Állapot</th><th class="n">Nettó m²</th><th class="n">Közös</th><th class="n">Számlázott m²</th>${TERMS.map(([f, l]) => `<th class="n">${l}<br>/m²/hó</th>`).join('')}<th class="n">Üzem. díj<br>/m²/hó</th><th class="n">Havi bérleti díj<br>(${tl})</th><th class="n">Havi összesen<br>(${tl})</th><th>Pénz&shy;nem</th><th class="noprint"></th></tr></thead>
-    <tbody>${body}<tr class="tot"><td colspan="3">Összesen, ${rows.length} egység</td><td class="n">${nf(sNet)}</td><td></td><td class="n">${nf(sBil)}</td><td colspan="5"></td><td class="n">${one ? nf(sRent, dec) : '–'}</td><td class="n">${one && !missSc ? nf(sRent + sSc, dec) : '–'}</td><td>${one ? esc(one) : curs.size > 1 ? 'vegyes' : ''}</td><td class="noprint"></td></tr></tbody></table>
-    ${curs.size > 1 ? '<p class="hint">Az összesen sor csak egy pénznemben számolható: válaszd ki a kijelzés pénznemét, és add meg az árfolyamot a Beállításokban.</p>' : ''}
-    ${miss && one ? `<p class="hint">${miss} egységnek nincs ára ennél a futamidőnél, ezek nincsenek az összegben.</p>` : ''}
-    <p class="hint">Terület: helyiséglista szerint, ${esc(MEAS[meas()])} mérték${meas() !== 'belso' ? ' (a szárny falmértéke arányában felszorozva)' : ''}. Számlázott m² = nettó (terasz a beszámított %-on) × (1 + közös terület %).</p>`
-    : '<p class="hint">Ebben a részben nincs a szűrőnek megfelelő helyiség.</p>';
-  const box = $('uedf'), id = S.edit;
-  if (box) {
-    const sv = document.querySelector('[data-usave]'), dl = document.querySelector('[data-udel]');
-    sv.onclick = async () => { const { o, bad } = readForm(box); if (bad) { toast('Hibás érték: ' + FLAB[bad]); return; } const r = PACKS[S.b].rooms.find((x) => x.id === id); if (await put(keyU(id), Object.assign({ lv: 'u', b: r.b, k: r.k, w: r.w, rid: id, code: r.code }, o))) { S.edit = null; } };
-    if (dl) dl.onclick = async () => { if (confirm('Törlöd az egyedi árat? Az egység visszakerül az általános feltételek alá.')) { if (await put(keyU(id), null)) S.edit = null; } };
+  $('usum').innerHTML = `Egységek: ${rows.length} db, ${nf(sNet)} m² <span class="dim">${nSpec ? `· ${nSpec} egyedi ár ` : ''}${nNo ? `· ${nNo} ár nélkül` : ''}</span>`;
+  $('tbl').innerHTML = rows.length ? `<table class="ut"><thead><tr><th>Egység</th><th>Szint / szárny</th><th>Állapot</th><th class="n">m²</th>${TERMS.map(([, l]) => `<th class="n">${l}</th>`).join('')}<th class="n">Üzem. díj</th><th class="n">Közös %</th><th>Pénznem</th><th></th></tr></thead><tbody>${body}</tbody></table>
+    <p class="hint" style="margin-top:4px">Díjak /m²/hó. Terület: helyiséglista szerint, ${esc(MEAS[meas()])}${meas() !== 'belso' ? ' (a szárny falmértéke arányában)' : ''}.</p>` : '<p class="hint">Ebben a részben nincs a szűrőnek megfelelő helyiség.</p>';
+  $('units').open = S.uOpen || !!S.edit;
+  if ($('usave')) {
+    const id = S.edit, r = ALL.find((x) => x.id === id);
+    $('usave').onclick = async () => { const { o, bad } = readForm($('uedf')); if (bad) { toast('Hibás érték: ' + bad); return; } if (!Object.keys(o).length) { toast('Nincs megadva egyedi érték'); return; } if (await put(keyU(id), Object.assign({ lv: 'u', b: r.b, k: r.k, w: r.w, rid: id, code: r.code }, o))) S.edit = null; };
+    if ($('udel')) $('udel').onclick = async () => { if (confirm('Törlöd az egyedi árat? Az egység visszakerül az általános feltételek alá.')) { if (await put(keyU(id), null)) S.edit = null; } };
   }
 }
 function renderAsis() {
-  const t = SET.asis || DEF_ASIS;
-  $('asis').innerHTML = `<b>Listaár, as-is állapotra.</b> ${esc(t)}${SET.valid ? ` <span class="dim">Érvényes: ${esc(SET.valid)}-tól.</span>` : ''}${SET.rate ? ` <span class="dim">Átváltás: ${nf(+SET.rate)} Ft/EUR${SET.rateDate ? ' (' + esc(SET.rateDate) + ')' : ''}.</span>` : ''}`;
-  $('pTitle').textContent = 'ACR listaár: ' + scopeLabel();
-  $('pMeta').textContent = `Horizont Park, 1113 Budapest, Daróczi út 1–3. Nyomtatva: ${new Date().toLocaleDateString('hu-HU')} Futamidő a havi összegeknél: ${TERMS.find((t) => t[0] === S.term)[1]}.`;
+  $('asis').innerHTML = `<b>Listaár, as-is állapotra.</b> ${esc(SET.asis || DEF_ASIS)}${SET.valid ? ` <span class="dim">Érvényes: ${esc(huDate(SET.valid))}-tól.</span>` : ''}`;
 }
-function csv() {
-  const rows = unitsInScope(), q = (s) => `"${String(s == null ? '' : s).replace(/"/g, '""')}"`, n = (x) => (x == null ? '' : String(+x.toFixed(4)).replace('.', ','));
-  const head = ['Épület', 'Szint', 'Szárny', 'Kód', 'Név', 'Állapot', 'Nettó m²', 'Terasz beszámítás %', 'Közös terület %', 'Számlázott m²', 'Pénznem', ...TERMS.map(([, l]) => `Bérleti díj ${l} /m²/hó`), 'Üzemeltetési díj /m²/hó', 'Egyedi feltétel', 'Megjegyzés'];
-  const lines = [head.map(q).join(';')].concat(rows.map((r) => { const p = priceOf(r), v = p.v; return [PACKS[r.b].name, lvlName(r.b, r.k), wingName(r.b, r.w), r.code, nameOf(r), (STL[stOf(r)] || STL[''])[0], n(p.net), isTer(r) ? n(p.tw) : '', n(p.cf), n(p.billed), v.cur || '', ...TERMS.map(([f]) => n(v[f])), n(v.sc), p.spec ? 'igen' : '', p.unote || ''].map((x, i) => (i >= 6 && i <= 9) || (i >= 11 && i <= 15) ? x : q(x)).join(';'); }));
-  lines.push('', q('Listaár, as-is állapotra. ' + (SET.asis || DEF_ASIS)));
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })); a.download = `ACR_listaar_${scopeLabel().replace(/[^\p{L}\p{N}]+/gu, '_')}_${new Date().toISOString().slice(0, 10)}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+const huDate = (iso) => (/^\d{4}-\d\d-\d\d$/.test(iso || '') ? iso.replace(/-/g, '. ') + '.' : iso || '');
+
+// ---------- nyomtatás (külön, lapra tördelt nézet) ----------
+function buildPrint() {
+  const rows = unitsIn(S.b, S.k, S.w, S.show), groups = hasTerrace(S.b, S.k, S.w) ? ['o', 't'] : ['o'], gv = merge(chainFor(S.b, S.k, S.w, null)).v, gc = gv.cur;
+  const genRows = groups.map((gk) => { const g = GRP[gk]; return `<tr><td>${g.lab}</td>${g.r.map((f) => `<td class="n">${gv[f] != null ? money(+gv[f], gc) : '–'}</td>`).join('')}<td class="n">${gv[g.sc] != null ? money(+gv[g.sc], gc) : '–'}</td><td class="n">${gv[g.cf] != null ? nf(+gv[g.cf], 1) : '–'}</td></tr>`; }).join('');
+  $('printv').innerHTML = `<h1>ACR listaár: ${esc(scopeLabel())}</h1>
+    <p class="meta">Horizont Park, 1113 Budapest, Daróczi út 1–3 · Nyomtatva: ${new Date().toLocaleDateString('hu-HU')}${SET.valid ? ' · Érvényes: ' + esc(huDate(SET.valid)) + '-tól' : ''} · Díjak ${esc(conv(1, gc).cur || '')}/m²/hó, nettó · Terület: ${esc(MEAS[meas()])}</p>
+    <h2>Általános feltételek</h2>
+    <table><thead><tr><th></th>${TERMS.map(([, l]) => `<th class="n">${l}</th>`).join('')}<th class="n">Üzem. díj</th><th class="n">Közös %</th></tr></thead><tbody>${genRows}</tbody></table>
+    <h2>Egységek (${rows.length} db)</h2>
+    <table><thead><tr><th>Egység</th><th>Szint</th><th>Szárny</th><th>Állapot</th><th class="n">m²</th>${TERMS.map(([, l]) => `<th class="n">${l}</th>`).join('')}<th class="n">Üzem. díj</th><th class="n">Közös %</th><th>Pénznem</th></tr></thead>
+    <tbody>${rows.map((r) => { const p = priceOf(r); return `<tr class="${p.spec ? 'spec' : ''}"><td><b>${esc(r.code || '–')}</b> ${esc(nameOf(r))}${isTer(r) ? ' (terasz)' : ''}${p.spec ? `<br><i>Egyedi feltétel: az általános feltételek nem vonatkoznak rá.${p.unote ? ' ' + esc(p.unote) : ''}</i>` : ''}</td><td>${esc(lvlName(r.b, r.k))}</td><td>${esc(wingName(r.b, r.w))}</td><td>${(STL[stOf(r)] || STL[''])[0]}</td><td class="n">${nf(p.net)}</td>${p.rent.map((x) => `<td class="n">${money(x, p.cur)}</td>`).join('')}<td class="n">${money(p.sc, p.cur)}</td><td class="n">${p.cf != null ? nf(p.cf, 1) : '–'}</td><td>${p.cur ? esc(conv(1, p.cur).cur) : '–'}</td></tr>`; }).join('')}</tbody></table>
+    <div class="asis"><b>Listaár, as-is állapotra.</b> ${esc(SET.asis || DEF_ASIS)}</div>`.replace(/<span class="dim"[^>]*>árfolyam\?<\/span>/g, 'árfolyam?');
+}
+window.addEventListener('beforeprint', buildPrint);
+
+// ---------- Excel (.xlsx) saját íróval ----------
+const CRCT = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = (u) => { let c = 0xffffffff; for (let i = 0; i < u.length; i++) c = CRCT[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+function zip(files) {
+  const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  const u16 = (v) => [v & 255, (v >>> 8) & 255], u32 = (v) => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+  for (const [name, text] of files) {
+    const nb = enc.encode(name), db = enc.encode(text), c = crc32(db);
+    const loc = new Uint8Array([...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(c), ...u32(db.length), ...u32(db.length), ...u16(nb.length), ...u16(0)]);
+    parts.push(loc, nb, db);
+    cen.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(c), ...u32(db.length), ...u32(db.length), ...u16(nb.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), nb);
+    off += loc.length + nb.length + db.length;
+  }
+  const cl = cen.reduce((s, x) => s + x.length, 0);
+  return new Blob([...parts, ...cen, new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(cl), ...u32(off), ...u16(0)])], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+const xe = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+const colL = (i) => { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+// sheet: { name, cols:[{h, w, t:'s'|'n2'|'n1'}], rows:[[...]], filter, freeze, notes:[text...] }
+function sheetXml(sh) {
+  const st = { s: 0, n2: 2, n1: 3 }, cell = (v, t, ref) => (v == null || v === '' ? '' : t === 's' || typeof v !== 'number' ? `<c r="${ref}" t="inlineStr"${t === 'h' ? ' s="1"' : ''}><is><t xml:space="preserve">${xe(v)}</t></is></c>` : `<c r="${ref}" s="${st[t] || 0}"><v>${v}</v></c>`);
+  const rows = [`<row r="1">${sh.cols.map((c, i) => cell(c.h, 'h', colL(i) + 1)).join('')}</row>`];
+  sh.rows.forEach((r, j) => rows.push(`<row r="${j + 2}">${r.map((v, i) => cell(v, sh.cols[i].t, colL(i) + (j + 2))).join('')}</row>`));
+  let n = sh.rows.length + 2; for (const t of sh.notes || []) { n++; rows.push(`<row r="${n}">${cell(t, 's', 'A' + n)}</row>`); }
+  const last = colL(sh.cols.length - 1) + (sh.rows.length + 1);
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0">${sh.freeze ? '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>' : ''}</sheetView></sheetViews><cols>${sh.cols.map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.w || 12}" customWidth="1"/>`).join('')}</cols><sheetData>${rows.join('')}</sheetData>${sh.filter && sh.rows.length ? `<autoFilter ref="A1:${last}"/>` : ''}</worksheet>`;
+}
+function xlsx(sheets) {
+  const W = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const files = [
+    ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`],
+    ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${W}" xmlns:r="${R}"><sheets>${sheets.map((s, i) => `<sheet name="${xe(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets><definedNames>${sheets.map((s, i) => (s.filter && s.rows.length ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${xe(s.name)}'!$A$1:$${colL(s.cols.length - 1)}$${s.rows.length + 1}</definedName>` : '')).join('')}</definedNames></workbook>`],
+    ['xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="${R}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="${R}/styles" Target="styles.xml"/></Relationships>`],
+    ['xl/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="${W}"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE3E9ED"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="4" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`],
+    ...sheets.map((s, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(s)]),
+  ];
+  return zip(files);
+}
+function exportXlsx() {
+  const rn = (x) => (x == null ? null : Math.round(x * 10000) / 10000);
+  const units = ALL.filter((r) => isUnit(r) && !hidden0(r));
+  const uCols = [{ h: 'Épület', w: 10 }, { h: 'Szint', w: 18 }, { h: 'Szárny', w: 18 }, { h: 'Kód', w: 13 }, { h: 'Név', w: 34 }, { h: 'Típus', w: 9 }, { h: 'Állapot', w: 13 }, { h: 'm²', w: 9, t: 'n2' }, { h: 'Pénznem', w: 9 },
+    ...TERMS.map(([, l]) => ({ h: `Bérleti díj ${l} /m²/hó`, w: 12, t: 'n2' })), { h: 'Üzemeltetési díj /m²/hó', w: 13, t: 'n2' }, { h: 'Közös terület %', w: 10, t: 'n1' }, { h: 'Egyedi feltétel', w: 10 }, { h: 'Megjegyzés', w: 36 }];
+  const uRows = units.map((r) => { const p = priceOf(r); return [PACKS[r.b].name, lvlName(r.b, r.k), wingName(r.b, r.w), r.code, nameOf(r), isTer(r) ? 'Terasz' : 'Iroda / terület', (STL[stOf(r)] || STL[''])[0], rn(p.net), p.cur || '', ...p.rent.map(rn), rn(p.sc), rn(p.cf), p.spec ? 'igen' : '', p.unote || '']; });
+  const gCols = [{ h: 'Épület', w: 10 }, { h: 'Szint', w: 18 }, { h: 'Szárny', w: 18 }, { h: 'Típus', w: 14 }, { h: 'Pénznem', w: 9 }, ...TERMS.map(([, l]) => ({ h: `Bérleti díj ${l} /m²/hó`, w: 12, t: 'n2' })), { h: 'Üzemeltetési díj /m²/hó', w: 13, t: 'n2' }, { h: 'Közös terület %', w: 10, t: 'n1' }, { h: 'Megjegyzés', w: 36 }];
+  const gRows = [];
+  for (const [b, p] of Object.entries(PACKS)) for (const [k, w] of [['*', '*'], ...lvlsOf(b).flatMap((l) => [[l[0], '*'], ...wingsOf(b, l[0]).map((x) => [l[0], x[0]])])]) {
+    const own = RULES[w !== '*' ? keyW(b, k, w) : k !== '*' ? keyF(b, k) : keyB(b)]; if (!own && k !== '*') continue;
+    const v = merge(chainFor(b, k, w, null)).v;
+    for (const gk of hasTerrace(b, k, w) ? ['o', 't'] : ['o']) { const g = GRP[gk]; gRows.push([p.name, k === '*' ? '(egész épület)' : lvlName(b, k), w === '*' ? (k === '*' ? '' : '(egész szint)') : wingName(b, w), g.lab, v.cur || '', ...g.r.map((f) => rn(v[f] != null ? +v[f] : null)), rn(v[g.sc] != null ? +v[g.sc] : null), rn(v[g.cf] != null ? +v[g.cf] : null), (own && own.note) || '']); }
+  }
+  const info = [['Listaár, as-is állapotra', SET.asis || DEF_ASIS], ['Érvényes ettől', huDate(SET.valid) || '–'], ['Mérési alap', MEAS[meas()]], ['Árfolyam (Ft/EUR)', SET.rate ? nf(+SET.rate) + (SET.rateDate ? ' (' + huDate(SET.rateDate) + ')' : '') : '–'], ['Készült', new Date().toLocaleString('hu-HU')]];
+  const blob = xlsx([
+    { name: 'Listaár egységenként', cols: uCols, rows: uRows, filter: true, freeze: true, notes: ['Listaár, as-is állapotra. ' + (SET.asis || DEF_ASIS)] },
+    { name: 'Általános feltételek', cols: gCols, rows: gRows, filter: true, freeze: true },
+    { name: 'Tudnivalók', cols: [{ h: 'Tétel', w: 24 }, { h: 'Érték', w: 110, t: 's' }], rows: info },
+  ]);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `ACR_listaar_${new Date().toISOString().slice(0, 10)}.xlsx`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
 }
 
 // ---------- beállítások ----------
 function renderSet() {
-  const ro = !canEdit() ? ' readonly' : '', dis = !canEdit() ? ' disabled' : '';
-  $('setc').innerHTML = `<h2>Beállítások</h2>
-    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
-      <label class="f">Mérési alap (a helyiségterület)<select id="sMeas"${dis}>${Object.entries(MEAS).map(([k, l]) => `<option value="${k}"${k === meas() ? ' selected' : ''}>${l}</option>`).join('')}</select><span class="inh">a szárny falmértékével arányosan, mint az adminban</span></label>
-      <label class="f">Árfolyam, Ft/EUR<input type="text" class="num" id="sRate" value="${esc(inVal(SET.rate))}"${ro}><span class="inh">a kijelzéshez és a CSV-hez</span></label>
-      <label class="f">Árfolyam dátuma<input type="text" id="sRateD" value="${esc(SET.rateDate || '')}" placeholder="ÉÉÉÉ-HH-NN"${ro}></label>
-      <label class="f">A listaár érvényes ettől<input type="text" id="sValid" value="${esc(SET.valid || '')}" placeholder="ÉÉÉÉ-HH-NN"${ro}></label>
+  const ro = canEdit() ? '' : ' readonly', dis = canEdit() ? '' : ' disabled';
+  $('setc').innerHTML = `<h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Beállítások</h2>
+    <div class="filters">
+      <label class="f">Mérési alap<select id="sMeas"${dis}>${Object.entries(MEAS).map(([k, l]) => `<option value="${k}"${k === meas() ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="f">Árfolyam, Ft/EUR<input type="text" class="num" style="width:110px" id="sRate" value="${esc(inVal(SET.rate))}"${ro}></label>
+      <label class="f">Árfolyam dátuma<input type="date" id="sRateD" value="${esc(SET.rateDate || '')}"${ro}></label>
+      <label class="f">A listaár érvényes ettől<input type="date" id="sValid" value="${esc(SET.valid || '')}"${ro}></label>
     </div>
-    <label class="f" style="margin-top:12px">As-is feltétel szövege (minden lista és nyomtatás alján)<textarea id="sAsis" rows="4"${ro}>${esc(SET.asis || DEF_ASIS)}</textarea></label>
-    <label class="f" style="margin-top:12px">Az árakat módosíthatja (e-mail címek, soronként egy)<textarea id="sEd" rows="3"${ro}>${esc((SET.editors || []).join('\n'))}</textarea>
-      <span class="inh">${editors().length ? 'Csak ők módosíthatnak; mindenki más, aki belép, csak megnézheti a listát és a kalkulátort használhatja.' : 'Üres: bárki, aki belép, módosíthatja az árakat. Írd be a tulajdonos e-mail címét.'} A korlátozás az oldalon érvényes; adatbázis szinten a Supabase jogosultság (RLS) dönt.</span></label>
-    <div style="margin-top:12px;display:flex;gap:8px"><button class="btn pri" id="sSave"${dis}>Mentés</button><span class="hint">Belépve: ${esc(window.LPDB.email())}</span></div>`;
+    <label class="f" style="margin-top:8px">As-is feltétel szövege (minden lista, nyomtatás és Excel alján)<textarea id="sAsis" rows="3"${ro}>${esc(SET.asis || DEF_ASIS)}</textarea></label>
+    <label class="f" style="margin-top:8px">Az árakat módosíthatja (e-mail címek, soronként egy)<textarea id="sEd" rows="2"${ro}>${esc((SET.editors || []).join('\n'))}</textarea>
+      <span class="hint">${editors().length ? 'Csak ők módosíthatnak, mindenki más csak megnézheti.' : 'Üres: bárki, aki belép, módosíthatja az árakat.'} A korlátozás az oldalon érvényes; adatbázis szinten a Supabase jogosultság (RLS) dönt.</span></label>
+    <div class="row" style="margin-top:8px"><button class="btn pri" id="sSave"${dis}>Mentés</button><span class="hint">Belépve: ${esc(window.LPDB.email())}</span></div>`;
   $('sSave').onclick = async () => {
     const rate = numIn($('sRate').value); if (rate !== undefined && (isNaN(rate) || rate <= 0)) { toast('Hibás árfolyam'); return; }
     const ed = $('sEd').value.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean), me = String(window.LPDB.email()).toLowerCase();
     if (ed.length && !ed.map((x) => x.toLowerCase()).includes(me) && !confirm('A saját címed nincs a listán, így mentés után te sem módosíthatsz. Folytatod?')) return;
-    const o = { meas: $('sMeas').value, rate, rateDate: $('sRateD').value.trim() || undefined, valid: $('sValid').value.trim() || undefined, asis: $('sAsis').value.trim() && $('sAsis').value.trim() !== DEF_ASIS ? $('sAsis').value.trim() : undefined, editors: ed };
-    await put('_beallitas', o);
+    const asis = $('sAsis').value.trim();
+    await put('_beallitas', { meas: $('sMeas').value, rate, rateDate: $('sRateD').value || undefined, valid: $('sValid').value || undefined, asis: asis && asis !== DEF_ASIS ? asis : undefined, editors: ed });
   };
 }
 
-// ---------- kalkulátor (ACR_ajanlat_kalkulator_v4 képletei) ----------
-const CDEF = () => [
-  { name: 'A – kiegyensúlyozott', area: 878.31, cf: 9.9, R: 12.6, T: 96, free: 6.5, fit: 250, oth: 0, feeType: 'Nincs', feeM: 0, feeP: 0, base: 'Headline', idx: 2.5, disc: 7, sc: 4.5, scMode: 'Fizetendő', cur: 'EUR' },
-  { name: 'B – fit-out vezetett', area: 878.31, cf: 9.9, R: 12.6, T: 96, free: 5, fit: 300, oth: 0, feeType: 'Nincs', feeM: 0, feeP: 0, base: 'Headline', idx: 2.5, disc: 7, sc: 4.5, scMode: 'Fizetendő', cur: 'EUR' },
-  { name: 'C – díjmentes vezetett', area: 878.31, cf: 9.9, R: 12, T: 96, free: 8, fit: 200, oth: 0, feeType: 'Nincs', feeM: 0, feeP: 0, base: 'Headline', idx: 2.5, disc: 7, sc: 4.5, scMode: 'Fizetendő', cur: 'EUR' }];
-let CV = CDEF(), CSRC = '';
-try { const j = JSON.parse(localStorage.getItem('acrListaar.kalk') || 'null'); if (j && j.v && j.v.length === 3) { CV = j.v.map((x, i) => Object.assign(CDEF()[i], x)); CSRC = j.src || ''; } } catch (e) { }
-const saveCalc = () => { try { localStorage.setItem('acrListaar.kalk', JSON.stringify({ v: CV, src: CSRC })); } catch (e) { } };
-function calc(x) {
+// ---------- kalkulátor ----------
+// bemenetek csoportokban; az üres mező 0, kivéve a kötelezőket (terület, ajánlati díj, futamidő)
+const CIN = [
+  ['ter', 'Terület és díj', true, [['area', 'Nettó bérelt terület', 'm²'], ['cf', 'Közös terület aránya', '%'], ['R', 'Ajánlati (headline) bérleti díj', '{c}/m²/hó']]],
+  ['fut', 'Futamidő és engedmények', true, [['T', 'Bérleti idő', 'hónap, 1–120'], ['free', 'Díjmentes időszak', 'hónap, a futamidő elején, egész vagy fél'], ['fit', 'Fit-out hozzájárulás', '{c}/m², nettó területre'], ['oth', 'Egyéb egyszeri költség', '{c}/m²']]],
+  ['ugy', 'Ügynöki díj', false, [['feeType', 'Típus', '', ['Nincs', 'Hónap', '%']], ['feeM', 'Hónapok száma', 'csak „Hónap” típusnál'], ['feeP', 'Százalék', '%, a futamidő teljes díjából, csak „%” típusnál'], ['base', 'Alapja', '', ['Headline', 'Díjmentes levonva', 'Nettó effektív']]]],
+  ['pen', 'Pénzügyi paraméterek', false, [['idx', 'Éves indexálás', '%'], ['disc', 'Éves diszkontráta', '%']]],
+  ['uz', 'Üzemeltetés', false, [['sc', 'Üzemeltetési díj', '{c}/m²/hó'], ['scMode', 'Üzemeltetési díj a díjmentes időben', '', ['Fizetendő', 'Díjmentes']]]],
+  ['en', 'Energia', true, [['eK', 'Becsült fogyasztás', 'kWh/m²/hó, a nettó területre'], ['eC', 'Önköltség', 'Ft/kWh, amennyiért mi vesszük'], ['eM', 'Árrés', 'Ft/kWh, lehet negatív is']]],
+];
+const SELDEF = { feeType: 'Nincs', base: 'Headline', scMode: 'Fizetendő' };
+const blankV = () => Object.assign({}, SELDEF);
+const RES = [
+  ['nerd', 'Nettó effektív díj, diszkontált, ügynöki díjjal', '{c}/m²/hó, döntéshez', 2, 'hi'],
+  ['ner0', 'Nettó effektív díj, ügynöki díj nélkül', '{c}/m²/hó, ahogy a bérlő látja', 2, 'hi'],
+  ['ner', 'Nettó effektív díj, ügynöki díjjal', '{c}/m²/hó', 2, 'hi'],
+  ['inc', 'Engedmény + költség a headline díjhoz képest', '%', 1, 'lo', true],
+  ['incM', 'Összes engedmény és költség', 'havi díjban', 1, 'lo'],
+  ['feeMo', 'Ebből ügynöki díj', 'havi díjban', 1],
+  ['income', 'Bérbeadó nettó bevétele a futamidőre', '{c}', 0, 'hi'],
+  ['feeTot', 'Ügynöki díj összesen', '{c}', 0],
+  ['foTot', 'Fit-out és egyéb összesen', '{c}', 0],
+  ['billed', 'Számlázott terület (nettó + közös)', 'm²', 2],
+  ['mRent', 'Havi bérleti díj a díjmentes idő után', '{c}', 0],
+  ['mSc', 'Havi üzemeltetési díj a díjmentes idő után', '{c}', 0],
+  ['mTot', 'Bérlő havi költsége (díj + üzem.)', '{c}', 0],
+  ['opxTot', 'Üzemeltetési díj összesen a futamidőre', '{c}', 0],
+  ['tenantTot', 'Bérlő teljes költsége a futamidőre', '{c}, energia nélkül', 0],
+  ['eKwh', 'Energia: havi fogyasztás', 'kWh/hó', 0],
+  ['eBill', 'Energia: havi továbbszámlázás a bérlőnek', 'Ft/hó (önköltség + árrés)', 0],
+  ['eGain', 'Energia: havi nyereség / veszteség', 'Ft/hó', 0, 'hi'],
+  ['eGainT', 'Energia: nyereség / veszteség a futamidőre', 'Ft', 0, 'hi'],
+];
+let CV = ls.get('acrListaar.kalk2', null), CS = Object.assign({ b: '', k: '*', w: '*', u: '', cur: 'EUR', src: '' }, ls.get('acrListaar.kalkhely', {})), KEYS = ls.get('acrListaar.kulcs', ['nerd', 'ner0', 'mTot', 'income', 'eGain']), COPEN = ls.get('acrListaar.kalknyit', {});
+if (!Array.isArray(CV) || CV.length !== 3) CV = (ls.get('acrListaar.kalkalap', null) || {}).v || [blankV(), blankV(), blankV()];
+if (!(ls.get('acrListaar.kalk2', null))) { const d = ls.get('acrListaar.kalkalap', null); if (d && d.cur) CS.cur = d.cur; }
+const saveCalc = () => { ls.set('acrListaar.kalk2', CV); ls.set('acrListaar.kalkhely', CS); };
+const z = (v) => (v == null || isNaN(v) ? 0 : +v);
+function calc(x0) {
+  const x = Object.assign({}, x0); for (const k of ['cf', 'free', 'fit', 'oth', 'feeM', 'feeP', 'idx', 'disc', 'sc']) x[k] = z(x[k]);
   const T = Math.round(x.T), idx = x.idx / 100, disc = x.disc / 100, cf = x.cf / 100;
   let paid = 0, head = 0, pv = 0, dfs = 0, opx = 0, firstH = null, firstS = null;
   for (let m = 1; m <= T; m++) {
     const y = Math.floor((m - 1) / 12), g = Math.pow(1 + idx, y), h = x.R * g, fr = Math.max(0, Math.min(1, m - x.free)), df = 1 / Math.pow(1 + disc, (m - 1) / 12);
     paid += h * fr; head += h; pv += h * fr * df; dfs += df;
-    const s = x.sc * g * (x.scMode === 'Díjmentes' ? fr : 1); opx += s;   // v4-hez képest: díjmentes módban a fél díjmentes hónapban az üzemeltetési díj is fél
+    opx += x.sc * g * (x.scMode === 'Díjmentes' ? fr : 1);   // a v4-hez képest: díjmentes módban a fél díjmentes hónapban az üzemeltetési díj is fél
     if (m === Math.floor(x.free) + 1) { firstH = h; firstS = x.sc * g; }
   }
   const billed = x.area * (1 + cf), fo = (x.fit + x.oth) * x.area / billed;
   const base = x.base === 'Headline' ? head : x.base === 'Díjmentes levonva' ? paid : paid - fo;
   const fee = x.feeType === 'Hónap' ? x.feeM * base * x.R / head : x.feeType === '%' ? x.feeP / 100 * base : 0;
-  const r = { paid, head, fo, base, fee, billed, opx,
-    ner0: (paid - fo) / T, ner: (paid - fo - fee) / T, nerd: (pv - fo - fee) / dfs,
-    inc: 1 - ((paid - fo - fee) / T) / (head / T), incM: (head - paid + fo + fee) / (head / T), feeMo: fee / (head / T),
-    income: (paid - fo - fee) * billed, feeTot: fee * billed, foTot: fo * billed,
-    mRent: firstH != null ? firstH * billed : null, mSc: firstS != null ? firstS * billed : null, opxTot: opx * billed, tenantTot: (paid + opx) * billed };
-  r.mTot = r.mRent != null ? r.mRent + r.mSc : null;
+  const r = { billed, ner0: (paid - fo) / T, ner: (paid - fo - fee) / T, nerd: (pv - fo - fee) / dfs, inc: 1 - ((paid - fo - fee) / T) / (head / T), incM: (head - paid + fo + fee) / (head / T), feeMo: fee / (head / T),
+    income: (paid - fo - fee) * billed, feeTot: fee * billed, foTot: fo * billed, mRent: firstH * billed, mSc: firstS * billed, opxTot: opx * billed, tenantTot: (paid + opx) * billed };
+  r.mTot = r.mRent + r.mSc;
+  if (x.eK != null && !isNaN(x.eK)) { r.eKwh = x.eK * x.area; r.eBill = r.eKwh * (z(x.eC) + z(x.eM)); r.eGain = r.eKwh * z(x.eM); r.eGainT = r.eGain * T; }
   return r;
 }
-function check(x, r) {
-  if (!(x.T >= 1 && x.T <= 120)) return 'Futamidő 1–120 hó';
+function check(x) {
+  const miss = [['area', 'terület'], ['R', 'ajánlati díj'], ['T', 'futamidő']].filter(([f]) => x[f] == null || isNaN(x[f])).map((m) => m[1]);
+  if (miss.length) return 'Hiányzik: ' + miss.join(', ');
+  const v = (f) => z(x[f]);
+  if (!(x.T >= 1 && x.T <= 120) || x.T !== Math.round(x.T)) return 'Futamidő 1–120 egész hónap';
   if (!(x.R > 0)) return 'Ajánlati díj legyen > 0';
   if (!(x.area > 0)) return 'Terület legyen > 0';
-  if (!(x.cf >= 0 && x.cf <= 50)) return 'Közös terület 0–50%';
-  if ([x.free, x.fit, x.oth, x.feeM, x.feeP, x.sc].some((v) => !(v >= 0))) return 'Negatív vagy hiányzó bemenet';
-  if (x.free >= x.T) return 'Díjmentes idő ≥ futamidő';
-  if (x.T !== Math.round(x.T) || x.free * 2 !== Math.round(x.free * 2)) return 'Futamidő egész hónap, díjmentes idő egész vagy fél hónap';
-  if (!(x.idx >= -5 && x.idx <= 15)) return 'Indexálás −5% és 15% között';
-  if (!(x.disc >= 0 && x.disc <= 30)) return 'Diszkontráta 0–30%';
-  if (x.feeType === 'Hónap' && x.feeM > 12) return 'Ügynöki díj legfeljebb 12 hónap';
-  if (x.feeType === '%' && x.feeP > 30) return 'Ügynöki díj legfeljebb 30%';
-  if (x.feeType !== 'Hónap' && x.feeM) return 'Hónap mező nem él, nullázd';
-  if (x.feeType !== '%' && x.feeP) return '% mező nem él, nullázd';
-  if (r.ner < 0) return 'Negatív nettó effektív díj';
+  if (!(v('cf') >= 0 && v('cf') <= 50)) return 'Közös terület 0–50%';
+  if (['free', 'fit', 'oth', 'feeM', 'feeP', 'sc', 'eK', 'eC'].some((f) => x[f] != null && (isNaN(x[f]) || x[f] < 0))) return 'Negatív vagy hibás bemenet';
+  if (x.eM != null && isNaN(x.eM)) return 'Hibás árrés';
+  if (v('free') >= x.T) return 'Díjmentes idő ≥ futamidő';
+  if (v('free') * 2 !== Math.round(v('free') * 2)) return 'Díjmentes idő egész vagy fél hónap';
+  if (!(v('idx') >= -5 && v('idx') <= 15)) return 'Indexálás −5% és 15% között';
+  if (!(v('disc') >= 0 && v('disc') <= 30)) return 'Diszkontráta 0–30%';
+  if (x.feeType === 'Hónap' && v('feeM') > 12) return 'Ügynöki díj legfeljebb 12 hónap';
+  if (x.feeType === '%' && v('feeP') > 30) return 'Ügynöki díj legfeljebb 30%';
+  if (calc(x).ner < 0) return 'Negatív nettó effektív díj';
   return 'OK';
 }
-const tierOf = (T) => (T <= 12 ? 'r1' : T <= 24 ? 'r2' : T <= 36 ? 'r3' : 'r4');
-function renderCalc() {
-  const units = Object.values(PACKS).flatMap((p) => p.rooms.filter(isUnit));
-  const sel = $('cU').value;
-  $('cU').innerHTML = '<option value="">válassz egységet</option>' + Object.entries(PACKS).map(([bid, p]) => `<optgroup label="${esc(p.name)}">${units.filter((r) => r.b === bid).map((r) => { const v = priceOf(r).v; return `<option value="${esc(r.id)}">${esc(r.code)} ${esc(nameOf(r))} · ${nf(area(r))} m²${v.cur ? '' : ' · nincs ár'}</option>`; }).join('')}</optgroup>`).join('');
-  $('cU').value = sel; $('cSrc').textContent = CSRC;
-  const R = CV.map(calc), cur = CV[0].cur || 'EUR';
-  const inp = (f, kind, unit) => `<tr><td class="lab">${unit}</td>${CV.map((x, i) => `<td>${kind === 'sel' ? `<select data-cv="${i}" data-cf="${f}">${(f === 'feeType' ? ['Nincs', 'Hónap', '%'] : f === 'base' ? ['Headline', 'Díjmentes levonva', 'Nettó effektív'] : f === 'cur' ? ['EUR', 'HUF'] : ['Fizetendő', 'Díjmentes']).map((o) => `<option${o === x[f] ? ' selected' : ''}>${o}</option>`).join('')}</select>` : `<input type="text" data-cv="${i}" data-cf="${f}" value="${esc(kind === 'txt' ? x[f] : inVal(x[f]))}"${kind === 'txt' ? '' : ' inputmode="decimal" style="text-align:right"'}${(f === 'feeM' && x.feeType !== 'Hónap') || (f === 'feeP' && x.feeType !== '%') ? ' readonly' : ''}>`}</td>`).join('')}</tr>`;
-  const best = (vals, hi) => { const ok = vals.filter((v) => isFinite(v)); const b = hi ? Math.max(...ok) : Math.min(...ok); return vals.map((v) => ok.length > 1 && Math.abs(v - b) < 1e-9 && new Set(ok.map((z) => z.toFixed(6))).size > 1); };
-  const out = (lab, f, d, opt = {}) => { const vals = R.map((r) => r[f]), bb = opt.best ? best(vals, opt.best === 'hi') : [];
-    return `<tr><td class="lab">${lab}</td>${vals.map((v, i) => `<td class="res${bb[i] ? ' best' : ''}">${v == null ? '–' : opt.pct ? nf(v * 100, 1) + '%' : nf(v, d)}</td>`).join('')}</tr>`; };
-  const lp = CV.map((x) => { if (!x.lp) return '–'; const v = x.lp[tierOf(x.T)]; if (v == null) return 'nincs listaár ehhez a futamidőhöz'; const d = (x.R / v - 1) * 100; return `${nf(v)} ${x.cur} (${TERMS.find((t) => t[0] === tierOf(x.T))[1]})${Math.abs(d) > 0.005 ? `, az ajánlat <span class="${d < 0 ? 'bad' : 'ok'}">${d > 0 ? '+' : ''}${nf(d, 1)}%</span>` : ', az ajánlat a listaáron'}`; });
-  const ch = CV.map((x, i) => check(x, R[i]));
-  $('calc').innerHTML = `<thead><tr><th>Bemenet / eredmény</th>${CV.map((x, i) => `<th>${'ABC'[i]}</th>`).join('')}</tr></thead><tbody>
-    <tr class="sec"><td colspan="4">BEMENETEK</td></tr>
-    ${inp('name', 'txt', 'Változat neve')}
-    ${inp('cur', 'sel', 'Pénznem')}
-    ${inp('area', 'num', 'Nettó bérelt terület, m² (terasz a beszámított részével)')}
-    ${inp('cf', 'num', 'Közös terület aránya, %')}
-    ${inp('R', 'num', `Ajánlati (headline) bérleti díj, ${cur}/m²/hó`)}
-    <tr><td class="lab">Listaár ennél a futamidőnél</td>${lp.map((t) => `<td class="hint" style="white-space:normal">${t}</td>`).join('')}</tr>
-    ${inp('T', 'num', 'Bérleti idő, hónap (1–120)')}
-    ${inp('free', 'num', 'Díjmentes időszak, hónap (a futamidő elején; egész vagy fél)')}
-    ${inp('fit', 'num', `Fit-out hozzájárulás, ${cur}/m² (nettó területre)`)}
-    ${inp('oth', 'num', `Egyéb egyszeri költség, ${cur}/m²`)}
-    ${inp('feeType', 'sel', 'Ügynöki díj típusa')}
-    ${inp('feeM', 'num', 'Ügynöki díj, hónapok száma')}
-    ${inp('feeP', 'num', 'Ügynöki díj, % (a futamidő teljes díjából)')}
-    ${inp('base', 'sel', 'Ügynöki díj alapja')}
-    ${inp('idx', 'num', 'Éves indexálás, %')}
-    ${inp('disc', 'num', 'Éves diszkontráta, %')}
-    ${inp('sc', 'num', `Üzemeltetési díj, ${cur}/m²/hó`)}
-    ${inp('scMode', 'sel', 'Üzemeltetési díj a díjmentes időben')}
-    <tr class="sec"><td colspan="4">EREDMÉNYEK (${cur}, a számlázott m²-re: nettó + közös)</td></tr>
-    <tr><td class="lab">Ellenőrzés</td>${ch.map((c) => `<td class="${c === 'OK' ? 'ok' : 'bad'}" style="white-space:normal">${esc(c)}</td>`).join('')}</tr>
-    ${out('Számlázott terület, m²', 'billed', 2)}
-    ${out('Nettó effektív díj, ügynöki díj nélkül, /m²/hó (ahogy a bérlő látja)', 'ner0', 2, { best: 'hi' })}
-    ${out('Nettó effektív díj, ügynöki díjjal, /m²/hó', 'ner', 2, { best: 'hi' })}
-    ${out('Nettó effektív díj, diszkontált, ügynöki díjjal, /m²/hó (döntéshez)', 'nerd', 2, { best: 'hi' })}
-    ${out('Engedmény + költség a headline díjhoz képest', 'inc', 1, { pct: true, best: 'lo' })}
-    ${out('Összes engedmény és költség, havi díjban', 'incM', 1, { best: 'lo' })}
-    ${out('Ebből ügynöki díj, havi díjban', 'feeMo', 1)}
-    ${out('Bérbeadó nettó bevétele a futamidőre', 'income', 0, { best: 'hi' })}
-    ${out('Ügynöki díj összesen', 'feeTot', 0)}
-    ${out('Fit-out és egyéb összesen', 'foTot', 0)}
-    ${out('Havi bérleti díj a díjmentes idő után', 'mRent', 0)}
-    ${out('Havi üzemeltetési díj a díjmentes idő után', 'mSc', 0)}
-    ${out('Bérlő havi költsége (díj + üzem.)', 'mTot', 0)}
-    ${out('Üzemeltetési díj összesen a futamidőre', 'opxTot', 0)}
-    ${out('Bérlő teljes költsége a futamidőre', 'tenantTot', 0)}
-  </tbody>`;
+const tierIdx = (T) => (T <= 12 ? 0 : T <= 24 ? 1 : T <= 36 ? 2 : 3);
+function renderCalcTop() {
+  fillPlace($('cB'), $('cK'), $('cW'), CS, { none: '— általános, egység nélkül —' });
+  const us = CS.b ? unitsIn(CS.b, CS.k, CS.w, 'ker') : [];
+  if (CS.u && !us.some((r) => r.id === CS.u)) CS.u = '';
+  $('cU').innerHTML = `<option value="">${CS.b ? (us.length ? 'válassz egységet' : 'nincs egység') : '—'}</option>` + us.map((r) => { const p = priceOf(r); return `<option value="${esc(r.id)}"${r.id === CS.u ? ' selected' : ''}>${esc(r.code)} ${esc(nameOf(r))} · ${nf(p.net)} m²${p.cur ? '' : ' · nincs ár'}</option>`; }).join('');
+  $('cU').disabled = !CS.b; $('cLoad').disabled = !CS.u; $('cCur').value = CS.cur;
+  $('cSrc').textContent = CS.src || 'Általános kalkulátor: nincs egység betöltve, minden érték kézzel adható meg.';
 }
-function loadUnit(id, which) {
-  const r = Object.values(PACKS).flatMap((p) => p.rooms).find((x) => x.id === id); if (!r) return;
-  const p = priceOf(r), v = p.v, lp = {}; TERMS.forEach(([f]) => { if (v[f] != null) lp[f] = +v[f]; });
-  const idxs = which === 'all' ? [0, 1, 2] : [+which];
-  for (const i of idxs) { const x = CV[i]; x.area = +p.base.toFixed(2); x.cf = p.cf; x.lp = lp; if (v.cur) x.cur = v.cur; const t = lp[tierOf(x.T)]; if (t != null) x.R = t; if (v.sc != null) x.sc = +v.sc; }
-  CSRC = `Betöltve: ${PACKS[r.b].name}, ${r.code} ${nameOf(r)}, ${nf(p.net)} m²${isTer(r) ? ` (terasz ${nf(p.tw, 0)}%-on: ${nf(p.base)} m²)` : ''}, közös ${nf(p.cf, 1)}%${p.spec ? ', egyedi feltétel' : ''}${v.cur ? '' : '. Ennek az egységnek nincs listaára, csak a terület töltődött be'}. A listaár a futamidő szerint (1, 2, 3 vagy 3+ év) kerül az ajánlati díjba.`;
-  saveCalc(); renderCalc();
+function renderCalc() {
+  const c = CS.cur, cu = (s) => s.replace('{c}', c), R = CV.map((x) => { const ch = check(x); return { ch, r: ch === 'OK' ? calc(x) : null }; });
+  const inRow = (f, lab, unit, opts) => `<div class="crow"><div class="cl">${lab}${unit ? `<small>${cu(unit)}</small>` : ''}</div>${CV.map((x, i) => opts
+    ? `<select data-cv="${i}" data-cf="${f}">${opts.map((o) => `<option${o === x[f] ? ' selected' : ''}>${o}</option>`).join('')}</select>`
+    : `<div><input type="text" class="num" inputmode="decimal" data-cv="${i}" data-cf="${f}" value="${esc(inVal(x[f]))}"${(f === 'feeM' && x.feeType !== 'Hónap') || (f === 'feeP' && x.feeType !== '%') ? ' readonly' : ''}>${f === 'R' && x.lp ? lpNote(x) : ''}</div>`).join('')}</div>`;
+  const best = (vals, dir) => { const ok = vals.filter((v) => v != null && isFinite(v)); if (!dir || ok.length < 2 || new Set(ok.map((v) => v.toFixed(6))).size < 2) return vals.map(() => false); const b = dir === 'hi' ? Math.max(...ok) : Math.min(...ok); return vals.map((v) => v != null && Math.abs(v - b) < 1e-9); };
+  const resRow = ([id, lab, unit, d, dir, pct]) => { const vals = R.map((o) => (o.r ? o.r[id] : null)), bb = best(vals, dir);
+    return `<div class="crow"><div class="cl">${lab}<small>${cu(unit)}</small></div>${vals.map((v, i) => `<div class="r${bb[i] ? ' best' : ''}">${v == null ? '–' : pct ? nf(v * 100, 1) + '%' : nf(v, d)}</div>`).join('')}</div>`; };
+  const key = RES.filter((r) => KEYS.includes(r[0])), rest = RES.filter((r) => !KEYS.includes(r[0]));
+  $('calc').innerHTML = `<div class="crow hd"><div class="cl"></div><div>A</div><div>B</div><div>C</div></div>
+    ${CIN.map(([gid, glab, open, rows]) => `<details class="cg" data-g="${gid}"${(COPEN[gid] ?? open) ? ' open' : ''}><summary>${glab}</summary><div>${rows.map(([f, lab, unit, opts]) => inRow(f, lab, unit, opts)).join('')}</div></details>`).join('')}
+    <details class="cg" open data-g="res"><summary>Fő eredmények</summary><div>
+      <div class="crow"><div class="cl">Ellenőrzés</div>${R.map((o) => `<div class="${o.ch === 'OK' ? 'ok' : 'bad'}" style="font-size:12px;text-align:right">${esc(o.ch)}</div>`).join('')}</div>
+      ${key.map(resRow).join('') || '<p class="hint">Nincs kiválasztott fő eredmény.</p>'}</div></details>
+    <details class="cg" data-g="more"${COPEN.more ? ' open' : ''}><summary>További eredmények (${rest.length})</summary><div>${rest.map(resRow).join('')}</div></details>
+    <details class="cg" data-g="keys"${COPEN.keys ? ' open' : ''}><summary>Melyik eredmény legyen a fő eredmények között?</summary><div class="keys">${RES.map(([id, lab]) => `<label><input type="checkbox" data-key="${id}"${KEYS.includes(id) ? ' checked' : ''}>${lab}</label>`).join('')}</div></details>
+    <p class="hint" style="margin-top:6px">A díjak a számlázott területre (nettó + közös) járnak, az energia a nettó területre. Üres mező = 0, kivéve a területet, az ajánlati díjat és a futamidőt. Az energia forintban számolódik. Belső használatra: az ügynöki díj, a diszkontált díj és a bérbeadó bevétele nem adható ki a bérlőnek.</p>`;
+}
+function lpNote(x) { const v = x.lp[tierIdx(x.T)], tl = TERMS[tierIdx(x.T)][1]; if (v == null) return `<div class="lp">nincs listaár (${tl})</div>`; const d = x.R != null && !isNaN(x.R) ? (x.R / v - 1) * 100 : null; return `<div class="lp">listaár ${tl}: ${nf(v)}${d != null && Math.abs(d) > 0.005 ? ` <span class="${d < 0 ? 'bad' : 'ok'}">${d > 0 ? '+' : ''}${nf(d, 1)}%</span>` : ''}</div>`; }
+function loadUnit() {
+  const r = ALL.find((x) => x.id === CS.u); if (!r) return;
+  const p = priceOf(r);
+  for (const x of CV) { x.area = +p.net.toFixed(2); x.cf = p.cf != null ? p.cf : x.cf; x.lp = p.rent; if (p.sc != null) x.sc = p.sc; const t = p.rent[tierIdx(z(x.T) || 999)]; if (t != null) x.R = t; }
+  if (p.cur) CS.cur = p.cur;
+  CS.src = `Betöltve: ${scopeLabel(r.b, r.k, r.w)}, ${r.code} ${nameOf(r)}, ${nf(p.net)} m², közös ${p.cf != null ? nf(p.cf, 1) + '%' : 'nincs megadva'}${p.spec ? ', egyedi feltétel' : ''}${p.cur ? '' : '. Nincs listaára, csak a terület töltődött be'}. Az ajánlati díj a futamidőhöz tartozó listaár (1, 2, 3 vagy 3+ év).`;
+  saveCalc(); renderCalcTop(); renderCalc();
 }
 
 // ---------- rajzolás, események ----------
 function renderAll() {
-  renderFilters();
   $('who').textContent = dbReady ? `${window.LPDB.email()}${canEdit() ? ' · szerkesztheti az árakat' : ' · csak megtekintés'}${window.LPDB.local ? ' · HELYI PRÓBAMÓD' : ''}` : 'betöltés…';
-  $('ro').hidden = !dbReady || canEdit(); $('ro').innerHTML = '<b>Csak megtekintés.</b> Az árakat a tulajdonos állítja be. A listából és a kalkulátorból bárki készíthet ajánlatot.';
+  $('ro').hidden = !dbReady || canEdit() || S.tab === 'calc'; $('ro').innerHTML = '<b>Csak megtekintés.</b> Az árakat a tulajdonos állítja be.';
   for (const t of ['list', 'calc', 'set']) { $('t-' + t).hidden = S.tab !== t; document.querySelector(`[data-tab="${t}"]`).classList.toggle('on', S.tab === t); }
-  if (S.tab === 'list') { renderGen(); renderTable(); renderAsis(); }
-  else if (S.tab === 'calc') renderCalc();
+  if (S.tab === 'list') { fillPlace($('fB'), $('fK'), $('fW'), S); $('fS').value = S.show; $('fC').value = S.cur; renderGen(); renderUnits(); renderAsis(); }
+  else if (S.tab === 'calc') { renderCalcTop(); renderCalc(); }
   else renderSet();
 }
 document.querySelector('.tabs').onclick = (e) => { const b = e.target.closest('[data-tab]'); if (!b) return; S.tab = b.dataset.tab; saveView(); renderAll(); };
 $('fB').onchange = (e) => { S.b = e.target.value; S.k = '*'; S.w = '*'; S.edit = null; saveView(); renderAll(); };
 $('fK').onchange = (e) => { S.k = e.target.value; S.w = '*'; S.edit = null; saveView(); renderAll(); };
 $('fW').onchange = (e) => { S.w = e.target.value; S.edit = null; saveView(); renderAll(); };
-$('fS').onchange = (e) => { S.show = e.target.value; saveView(); renderTable(); };
-$('fT').onchange = (e) => { S.term = e.target.value; saveView(); renderTable(); renderAsis(); };
-$('fC').onchange = (e) => { S.cur = e.target.value; saveView(); renderTable(); };
-$('csv').onclick = csv;
-$('prn').onclick = () => { S.edit = null; renderTable(); renderAsis(); window.print(); };
-$('tbl').onclick = (e) => {
-  const u = e.target.closest('[data-ued]'); if (u) { S.edit = S.edit === u.dataset.ued ? null : u.dataset.ued; renderTable(); return; }
-  const o = e.target.closest('[data-offer]'); if (o) { S.tab = 'calc'; saveView(); renderAll(); $('cU').value = o.dataset.offer; loadUnit(o.dataset.offer, 'all'); }
-};
-$('cLoad').onclick = () => { if (!$('cU').value) { toast('Válassz egységet'); return; } loadUnit($('cU').value, $('cV').value); };
-$('cReset').onclick = () => { if (!confirm('Visszaállítod a kalkulátor alapértékeit?')) return; CV = CDEF(); CSRC = ''; saveCalc(); renderCalc(); };
+$('fS').onchange = (e) => { S.show = e.target.value; saveView(); renderUnits(); };
+$('fC').onchange = (e) => { S.cur = e.target.value; saveView(); renderUnits(); };
+$('units').addEventListener('toggle', () => { if (!S.edit) { S.uOpen = $('units').open; saveView(); } });
+$('tbl').onclick = (e) => { const u = e.target.closest('[data-ued]'); if (u) { S.edit = S.edit === u.dataset.ued ? null : u.dataset.ued; renderUnits(); } };
+$('xls').onclick = exportXlsx;
+$('prn').onclick = () => { buildPrint(); window.print(); };
+for (const [id, f] of [['cB', 'b'], ['cK', 'k'], ['cW', 'w'], ['cU', 'u']]) $(id).onchange = (e) => { CS[f] = e.target.value; if (f === 'b') { CS.k = '*'; CS.w = '*'; CS.u = ''; } if (f === 'k') { CS.w = '*'; CS.u = ''; } if (f === 'w') CS.u = ''; if (!CS.b) { CS.src = ''; for (const x of CV) delete x.lp; } saveCalc(); renderCalcTop(); renderCalc(); };
+$('cCur').onchange = (e) => { CS.cur = e.target.value; saveCalc(); renderCalc(); };
+$('cLoad').onclick = loadUnit;
+$('cSaveDef').onclick = () => { ls.set('acrListaar.kalkalap', { v: CV.map((x) => { const o = Object.assign({}, x); delete o.lp; return o; }), cur: CS.cur }); toast('Elmentve a saját alapértékeidként'); };
+$('cLoadDef').onclick = () => { const d = ls.get('acrListaar.kalkalap', null); if (!d) { toast('Még nincs mentett alapértéked'); return; } CV = d.v.map((x) => Object.assign(blankV(), x)); CS.cur = d.cur || CS.cur; CS.src = 'Saját alapértékek betöltve.'; CS.u = ''; saveCalc(); renderCalcTop(); renderCalc(); };
+$('cClear').onclick = () => { if (!confirm('Kiüríted a kalkulátor összes mezőjét?')) return; CV = [blankV(), blankV(), blankV()]; CS.src = ''; CS.u = ''; saveCalc(); renderCalcTop(); renderCalc(); };
 $('calc').addEventListener('change', (e) => {
+  const k = e.target.closest('[data-key]'); if (k) { KEYS = RES.map((r) => r[0]).filter((id) => (id === k.dataset.key ? k.checked : KEYS.includes(id))); ls.set('acrListaar.kulcs', KEYS); renderCalc(); return; }
   const el = e.target.closest('[data-cv]'); if (!el) return; const x = CV[+el.dataset.cv], f = el.dataset.cf;
-  if (f === 'name' || el.tagName === 'SELECT') { x[f] = el.value; if (f === 'feeType') { if (x.feeType !== 'Hónap') x.feeM = 0; if (x.feeType !== '%') x.feeP = 0; } }
-  else { const n = numIn(el.value); x[f] = n === undefined ? NaN : n; }
+  if (el.tagName === 'SELECT') { x[f] = el.value; if (f === 'feeType') { if (x.feeType !== 'Hónap') delete x.feeM; if (x.feeType !== '%') delete x.feeP; } }
+  else { const n = numIn(el.value); if (n === undefined) delete x[f]; else x[f] = n; }
   saveCalc(); renderCalc();
 });
+$('calc').addEventListener('toggle', (e) => { const d = e.target; if (d.dataset && d.dataset.g && d.dataset.g !== 'res') { COPEN[d.dataset.g] = d.open; ls.set('acrListaar.kalknyit', COPEN); } }, true);
 renderAll();
 </script>
 </body></html>
