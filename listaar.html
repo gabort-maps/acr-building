@@ -305,7 +305,9 @@ const editors = () => (SET.editors || []).map((x) => String(x).trim().toLowerCas
 const canEdit = () => dbReady && (!editors().length || editors().includes(String(window.LPDB.email()).toLowerCase()));
 
 // ---------- terület (az admin logikája) ----------
-for (const [bid, p] of Object.entries(PACKS)) for (const r of p.rooms) r.b = bid;
+// nem kiadható, a listából kivéve: az A épület recepció szintje (0) és a külső rámpa
+const NOLET = { A: (r) => r.k === '0' || r.code === 'Lejtő' };
+for (const [bid, p] of Object.entries(PACKS)) { if (NOLET[bid]) p.rooms = p.rooms.filter((r) => !NOLET[bid](r)); for (const r of p.rooms) r.b = bid; }
 const ALL = Object.values(PACKS).flatMap((p) => p.rooms);
 const isTer = (r) => r.cat === 'Terasz / külső';
 function ar0(r) { if (!r.par) return r.a; if (r.rem) { const P = PACKS[r.b].parents[r.par]; let s = 0; for (const x of PACKS[r.b].rooms) if (x.par === r.par && !x.rem) s += (OV[x.id] && +OV[x.id].a) || 0; return Math.max(0, +((P ? P.a : 0) - s).toFixed(2)); } const o = OV[r.id]; return o && o.a ? +o.a : 0; }
@@ -395,7 +397,8 @@ function priceWarn(v, groups) {
     const q = r.filter((x) => x != null); if (q.some((x, i) => i && x > q[i - 1])) w.push(`${lab}: a hosszabb futamidő ára magasabb`); }
   return w;
 }
-const hasTerrace = (b, k, w) => PACKS[b].rooms.some((r) => isTer(r) && inScope(r, b, k, w) && isUnit(r));
+// a terasz sor csak szárny szinten látszik, és csak ott, ahol a szárnyhoz tartozik terasz
+const hasTerrace = (b, k, w) => k !== '*' && w !== '*' && PACKS[b].rooms.some((r) => isTer(r) && inScope(r, b, k, w) && isUnit(r));
 
 function renderGen() {
   const key = scopeKey(), own = RULES[key] || {}, lv = scopeLv(), groups = hasTerrace(S.b, S.k, S.w) ? ['o', 't'] : ['o'];
