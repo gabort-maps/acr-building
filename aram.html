@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>ACR áram dashboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@500;600;700&display=swap">
+<style>
+body{margin:0}
+[hidden]{display:none!important}
+/* Layout: control bar, KPI strip led by the Ft/kWh figure, then a 12-column chart grid (price composition + monthly totals, full daily history, month build-up + accuracy). Meter-panel blue ink for measured data, amber for anything forecast. */
+:root{
+  --bg:#f3f5f8; --panel:#ffffff; --ink:#15212e; --muted:#5b6876; --line:#dfe4ea; --faint:#eef1f4; --hover:rgba(31,95,139,.08);
+  --actual:#1f5f8b; --actual2:#8db3cf; --fc:#c7861a; --fc-band:rgba(199,134,26,.16); --ref:#7d8a97;
+  --good:#2f7d4f; --warn:#b06a10; --bad:#b23b3b;
+  --s1:#1f5f8b; --s2:#4f86ad; --s3:#86aecb; --s4:#b9cfe0; --s5:#9aa5b1;
+  --f-head:"Instrument Sans","IBM Plex Sans",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e151c; --panel:#151f29; --ink:#e3e9ef; --muted:#93a1af; --line:#2a3743; --faint:#1c2833; --hover:rgba(111,176,221,.10);
+  --actual:#6fb0dd; --actual2:#3b6a8c; --fc:#e8a73e; --fc-band:rgba(232,167,62,.18); --ref:#8592a0;
+  --good:#5cbf86; --warn:#e3a44a; --bad:#e07070;
+  --s1:#6fb0dd; --s2:#4c88b2; --s3:#356489; --s4:#254862; --s5:#6b7784; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e151c; --panel:#151f29; --ink:#e3e9ef; --muted:#93a1af; --line:#2a3743; --faint:#1c2833; --hover:rgba(111,176,221,.10);
+  --actual:#6fb0dd; --actual2:#3b6a8c; --fc:#e8a73e; --fc-band:rgba(232,167,62,.18); --ref:#8592a0;
+  --good:#5cbf86; --warn:#e3a44a; --bad:#e07070;
+  --s1:#6fb0dd; --s2:#4c88b2; --s3:#356489; --s4:#254862; --s5:#6b7784; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
+.wrap{max-width:1500px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px;display:grid;gap:14px}
+h1,h2,h3{font-family:var(--f-head);text-wrap:balance;margin:0}
+h1{font-size:1.35rem;font-weight:700;letter-spacing:-.01em}
+h2{font-size:.98rem;font-weight:600}
+.label{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:500}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.topbar{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:end;justify-content:space-between}
+.topbar .ttl{display:grid;gap:2px;min-width:0}
+.controls{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:end}
+.ctl{display:grid;gap:3px}
+.ctl input,.ctl select{font:inherit;font-family:var(--f-num);font-size:.85rem;padding:5px 7px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink);width:8.5em}
+.ctl select{width:12em}
+.ctl input[type=range]{width:11em;padding:0;background:transparent;border:none}
+.ctl small{color:var(--muted);font-size:.7rem}
+.filebtn{font:inherit;font-size:.82rem;cursor:pointer;border:1.5px dashed var(--line);border-radius:6px;padding:7px 12px;color:var(--ink);background:var(--panel)}
+.filebtn.over{border-color:var(--fc)}
+:focus-visible{outline:2px solid var(--fc);outline-offset:2px}
+.msg{font-size:.82rem;padding:7px 12px;border-radius:6px;background:var(--panel);border-left:3px solid var(--warn)}
+.msg.err{border-left-color:var(--bad)} .msg.ok{border-left-color:var(--good)}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 14px;display:grid;gap:4px;align-content:start;min-width:0}
+.kpi.hero{grid-column:span 2;background:color-mix(in srgb,var(--fc) 8%,var(--panel));border-color:color-mix(in srgb,var(--fc) 42%,var(--line))}
+.kpi .big{font-family:var(--f-num);font-size:1.35rem;font-weight:500;line-height:1.15}
+.kpi.hero .big{font-size:2rem}
+.kpi .u{font-size:.78rem;color:var(--muted);font-family:var(--f-body)}
+.kpi .rng{font-family:var(--f-num);font-size:.8rem;color:var(--fc)}
+.kpi .sm{font-size:.74rem;color:var(--muted)}
+.kpi .row{display:flex;justify-content:space-between;gap:8px;font-size:.8rem}
+.kpi .row span:last-child{font-family:var(--f-num)}
+.kpi .r{display:flex;justify-content:space-between;gap:14px;font-size:.8rem}
+.kpi .r span:last-child{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+.hero-grid{display:grid;grid-template-columns:auto 1fr;gap:4px 18px;align-items:start}
+.pill{display:inline-block;font-size:.68rem;padding:1px 8px;border-radius:99px;font-weight:600}
+.pill.lo{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.pill.mid{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.pill.hi{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.prog{height:5px;border-radius:3px;background:var(--faint);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--actual)}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}
+.c7{grid-column:span 7}.c5{grid-column:span 5}.c12{grid-column:span 12}.c8{grid-column:span 8}.c4{grid-column:span 4}.c6{grid-column:span 6}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:grid;gap:6px;min-width:0;align-content:start}
+.card .head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.legend{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:.72rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{display:inline-block;width:12px;height:3px;border-radius:2px}
+.legend i.sq{height:9px;width:9px}
+svg{display:block;width:100%;height:auto;overflow:visible;touch-action:pan-y}
+svg text{font-family:var(--f-num);font-size:10.5px;fill:var(--muted)}
+.tip{position:fixed;z-index:50;pointer-events:none;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 20px rgba(10,20,30,.18);padding:8px 10px;font-size:.78rem;min-width:180px;max-width:300px}
+.tip b{display:block;font-family:var(--f-head);font-size:.82rem;margin-bottom:4px}
+.tip .r{display:flex;justify-content:space-between;gap:14px}
+.tip .r span:last-child{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tip .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.tip hr{border:none;border-top:1px solid var(--line);margin:4px 0}
+.tip .fc{color:var(--fc)}
+details.more{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
+details.more summary{cursor:pointer;font-family:var(--f-head);font-weight:600}
+.tables{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px;margin-top:10px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.82rem}
+th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em}
+td{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+td:first-child{font-family:var(--f-body)}
+td.calc{text-align:left;color:var(--muted);white-space:normal;min-width:14em;font-size:.76rem}
+tr.tot td{font-weight:600;border-bottom:none}
+.notes{font-size:.78rem;color:var(--muted);display:grid;gap:5px;max-width:90ch;margin-top:10px}
+.notes p{margin:0}
+.tag{font-size:.66rem;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-left:4px;font-family:var(--f-body)}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.c7,.c5,.c8,.c4,.c6{grid-column:span 12}}
+@media (max-width:640px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi.hero{grid-column:span 2}.hero-grid{grid-template-columns:1fr}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+<div class="topbar">
+  <div class="ttl">
+    <span class="label">ACR Building · Daróczi út 1-3 · E.ON HU000210F11-S00000000000005004026</span>
+    <h1>Áramszámla-előrejelzés és előzmények</h1>
+  </div>
+  <div class="controls" id="ctrls" hidden>
+    <div class="ctl"><label class="label" for="selMonth">Hónap</label><select id="selMonth"></select></div>
+    <div class="ctl"><label class="label" for="rngDay">Visszatekintés</label><input id="rngDay" type="range" min="1" max="30" step="1"><small id="dayLbl"></small></div>
+    <div class="ctl"><label class="label" for="inFx">Ft/EUR</label><input id="inFx" type="number" step="0.01"><small>hó végi MNB</small></div>
+    <div class="ctl"><label class="label" for="inPrice">Hátralévő napok HUPX</label><input id="inPrice" type="number" step="0.1" placeholder="auto"><small>Ft/kWh, üres: 14 nap átlag</small></div>
+    <label class="filebtn" id="drop" for="inFile">W1000 export betöltése<input id="inFile" type="file" accept=".xlsx,.xls,.csv" hidden></label>
+  </div>
+</div>
+<div id="msgs" style="display:grid;gap:6px"></div>
+
+<section class="card" id="gate" style="max-width:640px;justify-self:start;gap:10px">
+  <h2>Töltsd be az adatfájlt</h2>
+  <p style="margin:0;color:var(--muted)">Ez az oldal nyilvános helyen van, ezért a fogyasztási és számlaadatok nincsenek benne. Töltsd be az <strong>acr-aram-adatok.json</strong> fájlt (Google Drive, ACR BUilding / 04-energy). Az adat csak ebben a böngészőben marad, sehova nem töltődik fel.</p>
+  <label class="filebtn" for="inData" style="justify-self:start">Adatfájl kiválasztása<input id="inData" type="file" accept=".json,application/json" hidden></label>
+</section>
+<div id="app" hidden style="display:grid;gap:14px">
+
+<section class="kpis" id="kpis" aria-label="Előrejelzés"></section>
+
+<section class="grid">
+  <div class="card c7">
+    <div class="head"><h2>Mennyibe kerül 1 kWh? Havonta, tételekre bontva</h2><span class="label">nettó Ft/kWh</span></div>
+    <div id="chPpk"></div>
+    <div class="legend"><span><i class="sq" style="background:var(--s1)"></i>HUPX energia</span><span><i class="sq" style="background:var(--s2)"></i>kereskedői díj</span><span><i class="sq" style="background:var(--s3)"></i>hálózati díjak</span><span><i class="sq" style="background:var(--s4)"></i>lekötött teljesítmény</span><span><i class="sq" style="background:var(--s5)"></i>pénzeszközök, jövedéki, meddő</span><span><i style="background:var(--ink)"></i>bruttó Ft/kWh</span><span><i class="sq" style="border:1.5px solid var(--fc)"></i>előrejelzés, sávval</span></div>
+  </div>
+  <div class="card c5">
+    <div class="head"><h2>Havi fogyasztás és bruttó számla</h2><span class="label">kWh · M Ft</span></div>
+    <div id="chMon"></div>
+    <div class="legend"><span><i class="sq" style="background:var(--actual)"></i>kWh</span><span><i class="sq" style="background:var(--fc)"></i>kWh előrejelzés</span><span><i style="background:var(--ink)"></i>bruttó számla, M Ft</span></div>
+  </div>
+  <div class="card c12">
+    <div class="head"><h2>Napi fogyasztás és HUPX ár, teljes előzmény</h2><span class="label">kWh/nap · Ft/kWh</span></div>
+    <div id="chHist"></div>
+    <div class="legend"><span><i class="sq" style="background:var(--actual)"></i>munkanap</span><span><i class="sq" style="background:var(--actual2)"></i>hétvége, ünnep</span><span><i class="sq" style="background:var(--fc)"></i>előrejelzett nap</span><span><i class="sq" style="border:1.5px dashed var(--bad)"></i>adathiány</span><span><i style="background:var(--ink)"></i>napi HUPX, fogyasztással súlyozva</span><span><i style="background:var(--fc)"></i>ár-előrejelzés</span></div>
+  </div>
+  <div class="card c7">
+    <div class="head"><h2>Halmozott fogyasztás a hónapban</h2><span class="label">kWh</span></div>
+    <div id="chCum"></div>
+    <div class="legend"><span><i style="background:var(--actual)"></i>mért</span><span><i style="background:var(--fc)"></i>előrejelzés</span><span><i class="sq" style="background:var(--fc-band)"></i>sáv (P10–P90)</span><span><i style="background:var(--ref)"></i>tavaly ugyanez a hónap</span><span><i style="background:var(--line)"></i>többi hónap</span></div>
+  </div>
+  <div class="card c5">
+    <div class="head"><h2>Mennyire pontos? Visszamérés</h2><span class="label">hiba, %</span></div>
+    <div id="chBt"></div>
+    <div class="legend"><span><i class="sq" style="background:var(--fc)"></i>Ft/kWh</span><span><i class="sq" style="background:var(--actual)"></i>kWh</span><span><i class="sq" style="background:var(--s3)"></i>nettó számla</span><span>oszlop: medián · vonal: legrosszabb hónap</span></div>
+  </div>
+</section>
+
+<details class="more">
+  <summary>Részletek: számla tételenként, visszamérés hónaponként, módszer</summary>
+  <div class="tables">
+    <div><div class="head" style="display:flex;justify-content:space-between;gap:8px"><h3 style="font-size:.9rem">Várható számla tételenként</h3><span class="label" id="invHead"></span></div><div class="scroll"><table id="tblInv"></table></div></div>
+    <div><div class="head" style="display:flex;justify-content:space-between;gap:8px"><h3 style="font-size:.9rem">Visszamérés hónaponként</h3><span class="label" id="btHead"></span></div><div class="scroll"><table id="tblBt"></table></div></div>
+  </div>
+  <div class="notes" id="foot"></div>
+  <p class="notes"><button type="button" id="btnForget" style="font:inherit;font-size:.78rem;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:5px;padding:4px 10px">Adatok törlése ebből a böngészőből</button></p>
+</details>
+</div>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+let DATA = null;
+const CFG = {
+  meter: "HU000210F11-S00000000000005004026",
+  C: 14.0623,                 // Ft/kWh trader spread, contract MA2047088 until 30 Jun 2027
+  capacityFee: 359840,        // Ft net / month, 260 kW
+  baseFee: 6014,              // Elosztói alapdíj, Ft net / month
+  vat: 1.27,                  // Pénzeszközök carry no VAT, every other item 27 %
+  rates: [                    // Ft/kWh, by month from
+    {from:"2000-01", dist:15.80, trans:4.84, excise:0.398},
+    {from:"2026-01", dist:14.92, trans:3.39, excise:0.415}
+  ],
+  // Public holidays and bridge rest days: treated like weekends
+  holidays: ["2025-10-23","2025-10-24","2025-11-01","2025-12-24","2025-12-25","2025-12-26",
+    "2026-01-01","2026-01-02","2026-03-15","2026-04-03","2026-04-05","2026-04-06","2026-05-01","2026-05-24","2026-05-25",
+    "2026-08-20","2026-08-21","2026-10-23","2026-11-01","2026-12-24","2026-12-25","2026-12-26",
+    "2027-01-01","2027-03-15","2027-03-26","2027-03-28","2027-03-29","2027-05-01","2027-05-16","2027-05-17","2027-08-20","2027-10-23","2027-11-01","2027-12-24","2027-12-25","2027-12-26"],
+  recentDays: null, priceWindow: 14, captureWindow: 60, btDays:[5,10,15,20,25]
+};
+const HOL = new Set(CFG.holidays);
+const nf = (d=0)=>new Intl.NumberFormat("hu-HU",{minimumFractionDigits:d,maximumFractionDigits:d});
+const f0=v=>nf(0).format(v), f1=v=>nf(1).format(v), f2=v=>nf(2).format(v);
+const fM=v=>nf(2).format(v/1e6)+" M";
+const pct=v=>(v>=0?"+":"−")+nf(1).format(Math.abs(v*100))+" %";
+const HUM=["január","február","március","április","május","június","július","augusztus","szeptember","október","november","december"];
+const monthName=m=>m.slice(0,4)+". "+HUM[+m.slice(5,7)-1];
+const dim=m=>new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
+const isRest=d=>{const w=new Date(d+"T12:00:00").getDay();return w===0||w===6||HOL.has(d)};
+const shiftM=(m,k)=>{let y=+m.slice(0,4),mo=+m.slice(5,7)+k;while(mo<1){mo+=12;y--}while(mo>12){mo-=12;y++}return y+"-"+String(mo).padStart(2,"0")};
+const ds=(m,i)=>m+"-"+String(i).padStart(2,"0");
+const quant=(a,q)=>{if(!a.length)return NaN;const s=[...a].sort((x,y)=>x-y),p=(s.length-1)*q,lo=Math.floor(p),hi=Math.ceil(p);return s[lo]+(s[hi]-s[lo])*(p-lo)};
+const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:NaN;
+const ratesFor=m=>CFG.rates.filter(r=>r.from<=m).slice(-1)[0];
+
+let DAYS = new Map();
+let INV = new Map();
+let imported = null;
+
+function monthDays(m){const n=dim(m),out=[];for(let i=1;i<=n;i++){const d=ds(m,i);out.push({d,i,rest:isRest(d),...(DAYS.get(d)||{})})}return out}
+function lastFull(m){let l=0;for(const x of monthDays(m)) if(x.k!=null) l=x.i;return l}
+function closedMonths(){return [...INV.keys()].filter(m=>INV.get(m).items).sort()}
+
+/* ---------- forecast for month m, with data up to day `cut` ---------- */
+function forecast(m, cut, opt={}){
+  const n=dim(m), days=monthDays(m);
+  const known = x => x.i<=cut && x.k!=null;
+  // reference months: same month last year if complete in data, else up to 3 previous closed months
+  const ly=shiftM(m,-12);
+  let refs = INV.has(ly) ? [ly] : [1,2,3].map(k=>shiftM(m,-k)).filter(r=>INV.has(r));
+  const refDays = refs.flatMap(monthDays).filter(x=>x.k!=null);
+  const refMean = {wd:mean(refDays.filter(x=>!x.rest).map(x=>x.k)), we:mean(refDays.filter(x=>x.rest).map(x=>x.k))};
+  const act = days.filter(known);
+  const typ=x=>x.rest?"we":"wd";
+  const refSum = act.reduce((s,x)=>s+refMean[typ(x)],0);
+  const k = act.length? act.reduce((s,x)=>s+x.k,0)/refSum : 1;
+  const w = act.length/n;
+  const rec = t => { const a=act.filter(x=>x.rest===(t==="we")).map(x=>x.k); return CFG.recentDays? a.slice(-CFG.recentDays[t]) : a; };
+  const cur = {wd:mean(rec("wd")), we:mean(rec("we"))};
+  const fcDay = t => { const base=k*refMean[t]; const c=isNaN(cur[t])?base:cur[t]; return w*c+(1-w)*base; };
+  // prices
+  const horizon = opt.live ? "9999-99-99" : ds(m,Math.min(cut+1,n));
+  const upto = [...DAYS.values()].filter(x=>x.ps!=null && x.d<=horizon).sort((a,b)=>a.d<b.d?-1:1);
+  const lastP = upto.slice(-CFG.priceWindow);
+  const level = opt.priceLevel ?? mean(lastP.map(x=>x.ps));
+  const capDays = upto.filter(x=>x.pw!=null).slice(-CFG.captureWindow);
+  const cap = {wd:mean(capDays.filter(x=>!isRest(x.d)).map(x=>x.pw/x.ps)), we:mean(capDays.filter(x=>isRest(x.d)).map(x=>x.pw/x.ps))};
+  const out = days.map(x=>{
+    const isAct = known(x);
+    const kwh = isAct ? x.k : fcDay(typ(x));
+    const priceKnown = x.ps!=null && x.d<=horizon;
+    let pw;
+    if(isAct && x.pw!=null) pw=x.pw;
+
+    else pw=(priceKnown && !(opt.priceLevel!=null && !isAct) ? x.ps : level)*cap[typ(x)];
+    return {...x, isAct, kwh, pw, gap: x.i<=cut && x.k==null, priceKnown};
+  });
+  const kwhAct = out.filter(x=>x.isAct).reduce((s,x)=>s+x.kwh,0);
+  const kwh = out.reduce((s,x)=>s+x.kwh,0);
+  const vw = out.reduce((s,x)=>s+x.kwh*x.pw,0)/kwh;
+  const vwAct = kwhAct? out.filter(x=>x.isAct).reduce((s,x)=>s+x.kwh*x.pw,0)/kwhAct : NaN;
+  // invoice
+  const prev = closedMonths().filter(p=>p<m).slice(-3).map(p=>INV.get(p));
+  const fx = opt.fx ?? (prev.length? prev[prev.length-1].fx : 365);
+  const R = ratesFor(m);
+  const penRate = mean(prev.map(p=>p.items["Pénzeszközök"]/p.billed));
+  const reactive = mean(prev.map(p=>p.items["Induktív meddő"]||0));
+  const enPrice = vw*fx/1000 + CFG.C;
+  const items = [
+    ["Energiadíj", kwh*enPrice, `HUPX ${f2(vw*fx/1000)} + ${f2(CFG.C)} = ${f2(enPrice)} Ft/kWh (árfolyam ${f2(fx)})`],
+    ["Elosztói forgalmi díj", kwh*R.dist, `${f2(R.dist)} Ft/kWh`],
+    ["Átviteli forgalmi díj", kwh*R.trans, `${f2(R.trans)} Ft/kWh`],
+    ["Lekötött teljesítmény (260 kW)", CFG.capacityFee, "fix"],
+    ["Elosztói alapdíj", CFG.baseFee, "fix"],
+    ["Pénzeszközök (KÁT, prémium)", kwh*penRate, `${f2(penRate)} Ft/kWh, előző 3 hó átlaga`],
+    ["Jövedéki adó", kwh*R.excise, `${f2(R.excise)} Ft/kWh`],
+    ["Induktív meddő", reactive, "előző 3 hó átlaga"]
+  ];
+  const net = items.reduce((s,x)=>s+x[1],0);
+  const pen = kwh*penRate;
+  const gross = CFG.vat*(net-pen)+pen;
+  // peak
+  const pkAct = Math.max(0,...out.filter(x=>x.isAct).map(x=>x.pk||0));
+  return {m,n,cut,days:out,kwh,kwhAct,vw,vwAct,fx,enPrice,items,net,gross,pen,pkAct,w,k,refs,level,cap,actN:out.filter(x=>x.isAct).length};
+}
+
+/* ---------- back-test ---------- */
+function actualNet(inv){return inv.net-(inv.items?.["Felszólítási díj"]||0)}
+let BT=null;
+function backtest(){
+  const res=[];
+  for(const m of closedMonths()){
+    const prev=closedMonths().filter(p=>p<m); if(!prev.length) continue;
+    const inv=INV.get(m), n=dim(m), fin=Math.max(...monthDays(m).map(x=>x.pk||0));
+    const actK = monthDays(m).reduce((s,x)=>s+(x.k||0),0);
+    const row={m,n,byDay:{}};
+    for(let d=1; d<n; d++){
+      const f=forecast(m,d,{fx:INV.get(prev[prev.length-1]).fx});
+      const pkBy=Math.max(...monthDays(m).filter(x=>x.i<=d).map(x=>x.pk||0));
+      row.byDay[d]={ppk:(f.net/f.kwh)/(actualNet(inv)/inv.billed)-1, kwh:f.kwh/actK-1, net:f.net/actualNet(inv)-1, gross:f.gross/inv.gross-1, vw:f.vw/inv.vw-1, pk:fin/pkBy};
+    }
+    res.push(row);
+  }
+  return res;
+}
+function btAt(d,key){return BT.map(r=>r.byDay[Math.min(d,r.n-1)]?.[key]).filter(v=>v!=null&&isFinite(v))}
+
+
+function bandK(f){
+  if(f.cut>=f.n) return {lo:f.kwh,hi:f.kwh};
+  const e=btAt(f.cut,"kwh"); if(e.length<3){const p=(1-f.w)*.15;return {lo:f.kwh*(1-p),hi:f.kwh*(1+p),ph:true}}
+  return {lo:f.kwh/(1+quant(e,.9)), hi:f.kwh/(1+quant(e,.1))};
+}
+function bandOf(f,key,val){
+  if(f.cut>=f.n) return {lo:val,hi:val};
+  const e=btAt(f.cut,key); if(e.length<3){const p=(1-f.w)*.15;return {lo:val*(1-p),hi:val*(1+p)}}
+  return {lo:val/(1+quant(e,.9)), hi:val/(1+quant(e,.1))};
+}
+
+
+
+/* ---------- chart helpers ---------- */
+const NS="http://www.w3.org/2000/svg";
+function svg(w,h){const s=document.createElementNS(NS,"svg");s.setAttribute("viewBox",`0 0 ${w} ${h}`);s.setAttribute("role","img");return s}
+function el(s,tag,a,txt){const e=document.createElementNS(NS,tag);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;s.appendChild(e);return e}
+function niceMax(v){if(!(v>0))return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));for(const m of[1,1.2,1.5,2,2.5,3,4,5,6,8,10])if(m*p>=v)return m*p;return 10*p}
+function grid(s,x0,x1,y,lo,hi,ticks,fmt,side="l"){for(let i=0;i<=ticks;i++){const v=lo+(hi-lo)*i/ticks,yy=y(v);if(side==="l")el(s,"line",{x1:x0,x2:x1,y1:yy,y2:yy,stroke:"var(--faint)","stroke-width":1});el(s,"text",{x:side==="l"?x0-6:x1+6,y:yy+3.5,"text-anchor":side==="l"?"end":"start"},fmt(v))}}
+const TIP=document.getElementById("tip");
+const row=(k,v,cls="",sw="")=>`<div class="r ${cls}"><span>${sw?`<i class="sw" style="background:${sw}"></i>`:""}${k}</span><span>${v}</span></div>`;
+/* hover: centers = x of each item in viewBox units; html(i) builds the tooltip */
+function hover(s,box,centers,html,bandW){
+  const g=el(s,"g",{}), band=el(g,"rect",{x:0,y:box.T,width:bandW||1,height:box.H-box.B-box.T,fill:"var(--hover)",visibility:"hidden"});
+  const ov=el(s,"rect",{x:box.L,y:box.T,width:box.W-box.L-box.R,height:box.H-box.B-box.T,fill:"transparent",style:"cursor:crosshair"});
+  const move=e=>{
+    const p=s.createSVGPoint();p.x=e.clientX;p.y=e.clientY;const q=p.matrixTransform(s.getScreenCTM().inverse());
+    let i=0,dmin=1e9;centers.forEach((c,j)=>{const d=Math.abs(c-q.x);if(d<dmin){dmin=d;i=j}});
+    const w=bandW||Math.max(2,(box.W-box.L-box.R)/centers.length);
+    band.setAttribute("x",centers[i]-w/2);band.setAttribute("width",w);band.setAttribute("visibility","visible");
+    TIP.innerHTML=html(i);TIP.hidden=false;
+    const r=TIP.getBoundingClientRect(),vw=innerWidth,vh=innerHeight;
+    let x=e.clientX+16,y=e.clientY+14;if(x+r.width>vw-8)x=e.clientX-r.width-16;if(y+r.height>vh-8)y=Math.max(8,vh-r.height-8);
+    TIP.style.left=Math.max(8,x)+"px";TIP.style.top=y+"px";
+  };
+  const out=()=>{TIP.hidden=true;band.setAttribute("visibility","hidden")};
+  ov.addEventListener("pointermove",move);ov.addEventListener("pointerdown",move);ov.addEventListener("pointerleave",out);
+}
+const mShort=m=>HUM[+m.slice(5,7)-1].slice(0,3)+(m.slice(5,7)==="01"?" "+m.slice(2,4):"");
+const NAPOK=["vasárnap","hétfő","kedd","szerda","csütörtök","péntek","szombat"];
+
+/* monthly Ft/kWh composition */
+function compClosed(m){
+  const i=INV.get(m),it=i.items,b=i.billed,g=k=>it[k]||0, net=actualNet(i);
+  const hupx=i.vw*i.fx/1000, fee=g("Energiadíj")/b-hupx, netw=(g("Elosztói forgalmi")+g("Átviteli forgalmi")+g("Elosztói alapdíj"))/b, cap=g("Lekötött telj.")/b;
+  const other=net/b-hupx-fee-netw-cap;
+  return {m,fc:false,kwh:b,net,gross:i.gross,peak:i.peak,parts:[hupx,fee,netw,cap,other],ppk:net/b,gppk:i.gross/b,fx:i.fx,derived:!!i.items_derived};
+}
+function compFc(f){
+  const it=Object.fromEntries(f.items.map(x=>[x[0],x[1]])),k=f.kwh;
+  const hupx=f.vw*f.fx/1000, fee=CFG.C, netw=(it["Elosztói forgalmi díj"]+it["Átviteli forgalmi díj"]+it["Elosztói alapdíj"])/k, cap=it["Lekötött teljesítmény (260 kW)"]/k;
+  const other=f.net/k-hupx-fee-netw-cap;
+  return {m:f.m,fc:true,kwh:k,net:f.net,gross:f.gross,peak:null,parts:[hupx,fee,netw,cap,other],ppk:f.net/k,gppk:f.gross/k,fx:f.fx};
+}
+const PARTS=["HUPX energia","kereskedői díj","hálózati díjak","lekötött teljesítmény","pénzeszközök, jövedéki, meddő"];
+const PCOL=["var(--s1)","var(--s2)","var(--s3)","var(--s4)","var(--s5)"];
+
+function chartPpk(f,ctx){
+  const W=720,H=290,L=40,R=40,T=14,B=26,box={W,H,L,R,T,B},s=svg(W,H);
+  const rows=closedMonths().map(compClosed); if(ctx.live) rows.push(compFc(f));
+  const max=niceMax(Math.max(...rows.map(r=>Math.max(r.gppk,r.parts.filter(v=>v>0).reduce((a,b)=>a+b,0))),ctx.live?ctx.bP.hi*1.27:0)*1.04);
+  const min=Math.min(0,...rows.map(r=>r.parts.filter(v=>v<0).reduce((a,b)=>a+b,0)));
+  const lo=min<0?-niceMax(-min):0;
+  const y=v=>T+(H-B-T)*(max-v)/(max-lo), bw=(W-L-R)/rows.length;
+  grid(s,L,W-R,y,0,max,5,v=>f0(v));
+  const cx=rows.map((r,j)=>L+j*bw+bw/2);
+  rows.forEach((r,j)=>{
+    const X=L+j*bw+bw*.16,w=bw*.68;let up=0,dn=0;
+    r.parts.forEach((v,k)=>{if(v>=0){el(s,"rect",{x:X,y:y(up+v),width:w,height:Math.max(0,y(up)-y(up+v)),fill:PCOL[k],opacity:r.fc?.55:1});up+=v}else{el(s,"rect",{x:X,y:y(dn),width:w,height:y(dn+v)-y(dn),fill:PCOL[k],opacity:.6});dn+=v}});
+    if(r.fc){el(s,"rect",{x:X,y:y(up),width:w,height:y(dn)-y(up),fill:"none",stroke:"var(--fc)","stroke-width":1.6});
+      el(s,"line",{x1:cx[j],x2:cx[j],y1:y(ctx.bP.lo),y2:y(ctx.bP.hi),stroke:"var(--fc)","stroke-width":1.6});
+      [ctx.bP.lo,ctx.bP.hi].forEach(v=>el(s,"line",{x1:cx[j]-6,x2:cx[j]+6,y1:y(v),y2:y(v),stroke:"var(--fc)","stroke-width":1.6}));
+      el(s,"text",{x:cx[j],y:y(ctx.bP.hi)-6,"text-anchor":"middle",style:"fill:var(--fc);font-weight:600"},f1(r.ppk))}
+    if(!ctx.live&&r.m===f.m){el(s,"path",{d:`M${cx[j]} ${y(f.net/f.kwh)-6} l6 6 l-6 6 l-6 -6z`,fill:"var(--fc)"});}
+    el(s,"text",{x:cx[j],y:H-8,"text-anchor":"middle",style:r.fc?"fill:var(--fc)":""},mShort(r.m));
+  });
+  if(lo<0) el(s,"line",{x1:L,x2:W-R,y1:y(0),y2:y(0),stroke:"var(--muted)","stroke-width":.8});
+  el(s,"polyline",{points:rows.map((r,j)=>`${cx[j]},${y(r.gppk)}`).join(" "),fill:"none",stroke:"var(--ink)","stroke-width":1.3,"stroke-dasharray":"3 3"});
+  rows.forEach((r,j)=>el(s,"circle",{cx:cx[j],cy:y(r.gppk),r:2.4,fill:r.fc?"var(--fc)":"var(--ink)"}));
+  hover(s,box,cx,i=>{const r=rows[i];return `<b>${monthName(r.m)}${r.fc?' <span class="fc">előrejelzés</span>':""}</b>`+
+    row("nettó Ft/kWh",f2(r.ppk))+(r.fc?row("sáv",`${f1(ctx.bP.lo)} – ${f1(ctx.bP.hi)}`,"fc"):"")+row("bruttó Ft/kWh",f2(r.gppk))+"<hr>"+
+    r.parts.map((v,k)=>row(PARTS[k],f2(v),"",PCOL[k])).join("")+"<hr>"+
+    row("fogyasztás",f0(r.kwh)+" kWh")+row("nettó számla",f0(r.net)+" Ft")+row("bruttó számla",f0(r.gross)+" Ft")+row("árfolyam",f2(r.fx)+" Ft/EUR")+(r.derived?'<div class="sm" style="color:var(--muted);margin-top:4px">tételek a végösszegből levezetve</div>':"")},bw);
+  return s;
+}
+
+function chartMon(f,ctx){
+  const W=520,H=290,L=46,R=36,T=14,B=26,box={W,H,L,R,T,B},s=svg(W,H);
+  const rows=closedMonths().map(m=>{const i=INV.get(m);return {m,kwh:i.billed,gross:i.gross,net:actualNet(i),peak:i.peak,fc:false}});
+  if(ctx.live) rows.push({m:f.m,kwh:f.kwh,gross:f.gross,net:f.net,peak:null,fc:true});
+  const kmax=niceMax(Math.max(...rows.map(r=>r.kwh),ctx.live?ctx.bK.hi:0)*1.04), gmax=niceMax(Math.max(...rows.map(r=>r.gross),ctx.live?ctx.bG.hi:0)*1.04);
+  const y=v=>T+(H-B-T)*(1-v/kmax), yg=v=>T+(H-B-T)*(1-v/gmax), bw=(W-L-R)/rows.length;
+  grid(s,L,W-R,y,0,kmax,5,v=>f0(v/1000)+"e");
+  for(let i=0;i<=5;i++){const v=gmax*i/5;el(s,"text",{x:W-R+6,y:yg(v)+3.5},f1(v/1e6))}
+  const cx=rows.map((r,j)=>L+j*bw+bw/2);
+  rows.forEach((r,j)=>{const X=L+j*bw+bw*.18,w=bw*.64;
+    el(s,"rect",{x:X,y:y(r.kwh),width:w,height:H-B-y(r.kwh),fill:r.fc?"var(--fc)":"var(--actual)",opacity:r.fc?.75:1,rx:1.5});
+    if(r.fc){el(s,"line",{x1:cx[j],x2:cx[j],y1:y(ctx.bK.lo),y2:y(ctx.bK.hi),stroke:"var(--ink)","stroke-width":1.2})}
+    el(s,"text",{x:cx[j],y:H-8,"text-anchor":"middle",style:r.fc?"fill:var(--fc)":""},HUM[+r.m.slice(5,7)-1].slice(0,3))});
+  el(s,"polyline",{points:rows.map((r,j)=>`${cx[j]},${yg(r.gross)}`).join(" "),fill:"none",stroke:"var(--ink)","stroke-width":1.5});
+  rows.forEach((r,j)=>el(s,"circle",{cx:cx[j],cy:yg(r.gross),r:2.6,fill:r.fc?"var(--fc)":"var(--ink)"}));
+  hover(s,box,cx,i=>{const r=rows[i],p=rows[i-1];return `<b>${monthName(r.m)}${r.fc?' <span class="fc">előrejelzés</span>':""}</b>`+
+    row("fogyasztás",f0(r.kwh)+" kWh")+(r.fc?row("sáv",`${f0(ctx.bK.lo)} – ${f0(ctx.bK.hi)} kWh`,"fc"):"")+(p?row("előző hóhoz",pct(r.kwh/p.kwh-1)):"")+
+    row("bruttó számla",f0(r.gross)+" Ft")+(r.fc?row("sáv",`${fM(ctx.bG.lo)} – ${fM(ctx.bG.hi)} Ft`,"fc"):"")+row("nettó számla",f0(r.net)+" Ft")+
+    row("nettó Ft/kWh",f2(r.net/r.kwh))+row("havi csúcs",r.peak!=null?f0(r.peak)+" kW":`${f0(f.pkAct)} kW eddig`)},bw);
+  return s;
+}
+
+function chartHist(f,ctx){
+  const W=1440,H=330,L=46,R=14,T=12,B=26,box={W,H,L,R,T,B},s=svg(W,H), MID=T+(H-B-T)*.62, P2=MID+22;
+  const first=DATA.days[0].d.slice(0,7), lastM=f.m>closedMonths().slice(-1)[0]?f.m:months().slice(-1)[0];
+  const ms=[];for(let m=first;m<=lastM;m=shiftM(m,1))ms.push(m);
+  const fxOf=m=>INV.get(m)?.fx??f.fx;
+  const days=ms.flatMap(m=>{
+    if(m===f.m) return f.days.map(x=>({d:x.d,k:x.kwh,pk:x.pk,act:x.isAct,gap:x.gap,rest:x.rest,hu:x.pw*f.fx/1000,huAct:x.isAct&&x.pw!=null,fcP:!x.isAct}));
+    return monthDays(m).map(x=>({d:x.d,k:x.k,pk:x.pk,act:x.k!=null,gap:x.k==null,rest:x.rest,hu:x.pw!=null?x.pw*fxOf(m)/1000:(x.ps!=null?x.ps*fxOf(m)/1000:null),huAct:x.pw!=null,fcP:false,g:x.g}));
+  });
+  const kmax=niceMax(Math.max(...days.map(x=>x.k||0))*1.05), pmax=niceMax(Math.max(...days.map(x=>x.hu||0))*1.05);
+  const y=v=>T+(MID-T)*(1-v/kmax), yp=v=>P2+(H-B-P2)*(1-v/pmax), bw=(W-L-R)/days.length;
+  grid(s,L,W-R,y,0,kmax,4,v=>f0(v));
+  grid(s,L,W-R,yp,0,pmax,2,v=>f0(v));
+  el(s,"text",{x:L,y:T-2},"kWh/nap");el(s,"text",{x:L,y:P2-6},"HUPX Ft/kWh, fogyasztással súlyozva");
+  const cx=days.map((x,j)=>L+j*bw+bw/2);
+  days.forEach((x,j)=>{
+    if(x.d.endsWith("-01")){el(s,"line",{x1:L+j*bw,x2:L+j*bw,y1:T,y2:H-B+4,stroke:"var(--line)","stroke-width":1});el(s,"text",{x:L+j*bw+3,y:H-8},mShort(x.d.slice(0,7)))}
+    if(x.k==null){el(s,"rect",{x:L+j*bw,y:T,width:bw,height:MID-T,fill:"color-mix(in srgb,var(--bad) 12%,transparent)"});return}
+    const fill=x.act?(x.rest?"var(--actual2)":"var(--actual)"):"var(--fc)";
+    el(s,"rect",{x:L+j*bw+bw*.12,y:y(x.k),width:bw*.76,height:MID-y(x.k),fill,opacity:x.act?1:(x.rest?.5:.8)});
+    if(x.gap||x.g)el(s,"rect",{x:L+j*bw,y:y(x.k)-3,width:bw,height:3,fill:"var(--bad)"});
+  });
+  // price lines: actual part solid, forecast dashed amber
+  const seg=(pred,attrs)=>{let pts=[];const flush=()=>{if(pts.length>1)el(s,"polyline",{points:pts.join(" "),fill:"none",...attrs});pts=[]};
+    days.forEach((x,j)=>{if(x.hu!=null&&pred(x))pts.push(`${cx[j]},${yp(x.hu)}`);else flush()});flush()};
+  seg(x=>!x.fcP,{stroke:"var(--ink)","stroke-width":1.1});
+  seg(x=>x.fcP,{stroke:"var(--fc)","stroke-width":1.6,"stroke-dasharray":"4 3"});
+  hover(s,box,cx,i=>{const x=days[i],dt=new Date(x.d+"T12:00");return `<b>${x.d.replace(/-/g,". ")}. ${NAPOK[dt.getDay()]}${x.act?"":' <span class="fc">előrejelzés</span>'}</b>`+
+    row("fogyasztás",x.k!=null?f0(x.k)+" kWh":"nincs adat")+(x.pk?row("napi csúcs",f0(x.pk)+" kW"):"")+
+    row("HUPX, súlyozott",x.hu!=null?f2(x.hu)+" Ft/kWh":"–",x.huAct?"":"fc")+row("nap típusa",x.rest?"hétvége/ünnep":"munkanap")+
+    (x.gap&&x.act===false&&x.d<=ds(f.m,f.cut)?'<div style="color:var(--bad)">adathiány, előrejelzéssel pótolva</div>':"")+(x.g?`<div style="color:var(--bad)">${x.g} negyedóra pótolva</div>`:"")},Math.max(bw,3));
+  return s;
+}
+
+function chartCum(f,ctx){
+  const W=720,H=270,L=50,R=14,T=12,B=26,box={W,H,L,R,T,B},s=svg(W,H);
+  const n=f.n, band=ctx.bK;
+  const oth=closedMonths().filter(m=>m!==f.m).map(m=>{let c=0;return {m,c:monthDays(m).map(x=>c+=x.k||0)}});
+  const ly=shiftM(f.m,-12); let lyC=null; if(INV.has(ly)){let c=0;lyC=monthDays(ly).map(x=>c+=x.k||0)}
+  let c=0; const cum=f.days.map(x=>c+=x.kwh);
+  const max=niceMax(Math.max(band.hi,...oth.map(o=>o.c[o.c.length-1]),lyC?lyC[lyC.length-1]:0)*1.03);
+  const x=i=>L+(W-L-R)*(i-.5)/31, y=v=>H-B-(H-B-T)*v/max;
+  grid(s,L,W-R,y,0,max,5,v=>f0(v));
+  for(const i of[1,5,10,15,20,25,30]) el(s,"text",{x:x(i),y:H-8,"text-anchor":"middle"},i+".");
+  for(const o of oth) el(s,"polyline",{points:o.c.map((v,i)=>`${x(i+1)},${y(v)}`).join(" "),fill:"none",stroke:"var(--line)","stroke-width":1.2});
+  if(lyC) el(s,"polyline",{points:lyC.map((v,i)=>`${x(i+1)},${y(v)}`).join(" "),fill:"none",stroke:"var(--ref)","stroke-width":1.5,"stroke-dasharray":"4 3"});
+  const a0=f.cut, actC=cum[a0-1]||0, rem=f.kwh-actC, lo=[],hi=[],pts=[];
+  const bandAt=i=>{const sh=rem?(cum[i-1]-actC)/rem:0;return [actC+sh*(band.lo-actC),actC+sh*(band.hi-actC)]};
+  for(let i=a0;i<=n;i++){const b=bandAt(i);pts.push([i,cum[i-1]]);lo.push([i,b[0]]);hi.push([i,b[1]])}
+  if(a0<n){el(s,"polygon",{points:[...hi,...lo.reverse()].map(p=>`${x(p[0])},${y(p[1])}`).join(" "),fill:"var(--fc-band)"});
+    el(s,"polyline",{points:pts.map(p=>`${x(p[0])},${y(p[1])}`).join(" "),fill:"none",stroke:"var(--fc)","stroke-width":2,"stroke-dasharray":"5 3"})}
+  if(a0>0){el(s,"polyline",{points:cum.slice(0,a0).map((v,i)=>`${x(i+1)},${y(v)}`).join(" "),fill:"none",stroke:"var(--actual)","stroke-width":2.4});el(s,"circle",{cx:x(a0),cy:y(actC),r:3.5,fill:"var(--actual)"})}
+  el(s,"circle",{cx:x(n),cy:y(f.kwh),r:3.5,fill:"var(--fc)"});
+  const cx=Array.from({length:n},(_,i)=>x(i+1));
+  hover(s,box,cx,i=>{const d=i+1,isA=d<=a0,b=bandAt(d),ov=oth.map(o=>o.c[Math.min(d,o.c.length)-1]);
+    return `<b>${monthName(f.m)} ${d}.${isA?"":' <span class="fc">előrejelzés</span>'}</b>`+
+    row("halmozott",f0(cum[i])+" kWh",isA?"":"fc")+(!isA?row("sáv",`${f0(b[0])} – ${f0(b[1])}`,"fc"):"")+row("aznap",f0(f.days[i].kwh)+" kWh")+
+    (lyC?row(`tavaly (${monthName(ly)})`,f0(lyC[Math.min(d,lyC.length)-1])+" kWh"):"")+row("többi hónap",`${f0(Math.min(...ov))} – ${f0(Math.max(...ov))}`)},(W-L-R)/31);
+  return s;
+}
+
+function chartBt(f){
+  const W=520,H=270,L=40,R=10,T=14,B=26,box={W,H,L,R,T,B},s=svg(W,H);
+  const D=CFG.btDays, keys=[["ppk","Ft/kWh","var(--fc)"],["kwh","kWh","var(--actual)"],["net","nettó számla","var(--s3)"]];
+  const data=D.map(d=>keys.map(([k])=>{const a=btAt(d,k).map(Math.abs);return {med:quant(a,.5),max:Math.max(...a),worstM:BT[btAt(d,k).map(Math.abs).indexOf(Math.max(...a))]?.m}}));
+  const max=niceMax(Math.max(...data.flat().map(o=>o.max))*100*1.05), y=v=>H-B-(H-B-T)*v/max, gw=(W-L-R)/D.length;
+  grid(s,L,W-R,y,0,max,4,v=>f0(v)+"%");
+  data.forEach((g,j)=>{const bw=(gw-18)/3;g.forEach((o,k)=>{const X=L+j*gw+9+k*bw;
+    el(s,"rect",{x:X+1.5,y:y(o.med*100),width:bw-3,height:H-B-y(o.med*100),fill:keys[k][2],rx:1.5});
+    el(s,"line",{x1:X+1.5,x2:X+bw-1.5,y1:y(o.max*100),y2:y(o.max*100),stroke:keys[k][2],"stroke-width":2.2});
+    el(s,"line",{x1:X+bw/2,x2:X+bw/2,y1:y(o.med*100),y2:y(o.max*100),stroke:keys[k][2],"stroke-width":1,opacity:.6})});
+    el(s,"text",{x:L+j*gw+gw/2,y:H-8,"text-anchor":"middle",style:Math.abs(D[j]-f.cut)<=2?"fill:var(--fc);font-weight:600":""},D[j]+". nap")});
+  hover(s,box,D.map((_,j)=>L+j*gw+gw/2),j=>`<b>Előrejelzés a ${D[j]}. napon</b><div style="color:var(--muted);font-size:.72rem;margin-bottom:4px">${BT.length} lezárt hónap, eltérés a tényleges számlától</div>`+
+    keys.map(([k,lab,c],q)=>row(lab,`medián ${f1(data[j][q].med*100)} % · max ${f1(data[j][q].max*100)} %`,"",c)).join("")+
+    `<div style="color:var(--muted);font-size:.72rem;margin-top:4px">legrosszabb Ft/kWh: ${data[j][0].worstM?monthName(data[j][0].worstM):"–"}</div>`,gw);
+  return s;
+}
+
+/* ---------- page ---------- */
+const $=id=>document.getElementById(id);
+function msg(text,cls=""){const d=document.createElement("div");d.className="msg "+cls;d.textContent=text;$("msgs").appendChild(d)}
+function months(){return [...new Set([...DAYS.keys()].map(d=>d.slice(0,7)))].filter(m=>monthDays(m).some(x=>x.k!=null)).sort()}
+
+function render(){
+  const m=$("selMonth").value, n=dim(m), live=!INV.has(m);
+  const lf=lastFull(m); $("rngDay").max=lf;
+  let cut=+$("rngDay").value; if(cut>lf){cut=lf;$("rngDay").value=lf}
+  $("dayLbl").textContent=`${cut}. napig`;
+  const fx=parseFloat($("inFx").value)||undefined, pl=parseFloat($("inPrice").value);
+  const fxv=fx||INV.get(closedMonths().pop()).fx;
+  const f=forecast(m,cut,{fx,priceLevel:isNaN(pl)?undefined:pl*1000/fxv,live});
+  const bK=bandK(f), bN=bandOf(f,"net",f.net), bG={lo:f.gross*bN.lo/f.net,hi:f.gross*bN.hi/f.net};
+  const ppk=f.net/f.kwh, bP=bandOf(f,"ppk",ppk), hupx=f.vw*f.fx/1000;
+  const pr=btAt(cut,"pk"), pkF=f.pkAct*quant(pr,.5), pkH=f.pkAct*quant(pr,.9);
+  const conf=f.w<1/3?["alacsony","lo"]:f.w<2/3?["közepes","mid"]:["magas","hi"];
+  const lm=INV.get(shiftM(m,-1)), ly=INV.get(shiftM(m,-12));
+  const cmpT=(cur,a,b,fmt)=>`<span class="sm">előző hó ${a!=null?fmt(a)+" ("+pct(cur/a-1)+")":"–"} · tavaly ${b!=null?fmt(b)+" ("+pct(cur/b-1)+")":"–"}</span>`;
+  const gaps=f.days.filter(x=>x.gap).map(x=>x.i+".");
+  const ph=bK.ph?' <span class="tag">ideiglenes sáv</span>':"";
+  const done=f.cut>=n;
+  $("kpis").innerHTML=`
+   <div class="kpi hero"><span class="label">${done?"Tényleges":"Várható"} átlagár, ${monthName(m)}, nettó</span>
+     <div class="hero-grid"><div><div class="big">${f1(ppk)} <span class="u">Ft/kWh</span></div><div class="rng">${done?"":f1(bP.lo)+" – "+f1(bP.hi)+" Ft/kWh"}</div></div>
+     <div style="display:grid;gap:1px">${row("bruttó",f1(f.gross/f.kwh)+" Ft/kWh")}${row("HUPX + kereskedői díj",f1(hupx)+" + "+f2(CFG.C))}${row("hálózat, díjak, adók",f1(ppk-f.enPrice)+" Ft/kWh")}</div></div>
+     ${cmpT(ppk,lm?actualNet(lm)/lm.billed:null,ly?actualNet(ly)/ly.billed:null,v=>f1(v))}</div>
+   <div class="kpi"><span class="label">Fogyasztás</span><div class="big">${f0(f.kwh)} <span class="u">kWh</span></div>
+     <div class="rng">${done?"":f0(bK.lo)+" – "+f0(bK.hi)}${ph}</div><span class="sm">eddig ${f0(f.kwhAct)} kWh</span>${cmpT(f.kwh,lm?.billed,ly?.billed,v=>f0(v/1000)+"e")}</div>
+   <div class="kpi"><span class="label">Számla, bruttó</span><div class="big">${fM(f.gross)} <span class="u">Ft</span></div>
+     <div class="rng">${done?"":fM(bG.lo)+" – "+fM(bG.hi)}</div><span class="sm">nettó ${fM(f.net)} Ft</span>${cmpT(f.gross,lm?.gross,ly?.gross,v=>fM(v))}</div>
+   <div class="kpi"><span class="label">Havi csúcs</span><div class="big">${f0(done?f.pkAct:pkF)} <span class="u">kW</span></div>
+     <div class="rng">${done?"":"eddig "+f0(f.pkAct)+", max kb. "+f0(pkH)}</div><span class="sm">lekötött 260 kW</span>${cmpT(f.pkAct,lm?.peak,ly?.peak,v=>f0(v))}</div>
+   <div class="kpi"><span class="label">Eltelt napok</span><div class="big">${f.cut} <span class="u">/ ${n}</span></div>
+     <div class="prog"><i style="width:${f.cut/n*100}%"></i></div>
+     <div class="row"><span class="sm">pontosság</span><span class="pill ${conf[1]}">${conf[0]}</span></div>
+     <span class="sm">${f.actN} mért nap${gaps.length?`, hiányzik: ${gaps.join(", ")}`:""}</span></div>`;
+  const ctx={live,bK,bG,bP};
+  $("chPpk").replaceChildren(chartPpk(f,ctx));
+  $("chMon").replaceChildren(chartMon(f,ctx));
+  $("chHist").replaceChildren(chartHist(f,ctx));
+  $("chCum").replaceChildren(chartCum(f,ctx));
+  $("chBt").replaceChildren(chartBt(f));
+  // tables
+  $("invHead").textContent=monthName(m)+(live?", előrejelzés":", visszamérés");
+  const real=INV.get(m);
+  $("tblInv").innerHTML=`<tr><th>Tétel</th><th>Nettó Ft</th><th>Számítás</th></tr>`+
+    f.items.map(x=>`<tr><td>${x[0]}</td><td>${f0(x[1])}</td><td class="calc">${x[2]}</td></tr>`).join("")+
+    `<tr class="tot"><td>Nettó összesen</td><td>${f0(f.net)}</td><td class="calc">${f2(ppk)} Ft/kWh${real?`; tényleges: ${f0(actualNet(real))}`:""}</td></tr>`+
+    `<tr class="tot"><td>Bruttó</td><td>${f0(f.gross)}</td><td class="calc">27 % ÁFA, a pénzeszközök ÁFA-mentesek${real?`; tényleges: ${f0(real.gross)}`:""}</td></tr>`;
+  $("btHead").textContent=`${cut}. napi előrejelzés hibája`;
+  $("tblBt").innerHTML=`<tr><th>Hónap</th><th>Ft/kWh</th><th>kWh</th><th>Nettó</th><th>Bruttó</th></tr>`+
+    BT.map(r=>{const b=r.byDay[Math.min(cut,r.n-1)];const c=v=>`<td style="color:${Math.abs(v)>.1?"var(--bad)":Math.abs(v)>.05?"var(--warn)":"inherit"}">${pct(v)}</td>`;return `<tr><td>${monthName(r.m)}</td>${c(b.ppk)}${c(b.kwh)}${c(b.net)}${c(b.gross)}</tr>`}).join("");
+  const lastPrice=[...DAYS.values()].filter(x=>x.ps!=null).map(x=>x.d).sort().pop();
+  $("foot").innerHTML=`<p>Mérés: E.ON W1000, 15 perces +A. Utolsó negyedóra: ${imported?imported.last:DATA.lastQ}. Hiányzó napok: ${gaps.length?gaps.join(", ")+" (előrejelzéssel pótolva)":"nincs"}. Előzmények: 2025. október – 2026. október, 13 E.ON számla; a 2026. októberi tételek a végösszegekből levezetve.</p>
+   <p>Ár: HUPX másnapi 15 perces ár (energy-charts.info, CC BY 4.0, SMARD) ${lastPrice}-ig, az árfolyammal Ft/kWh-ra váltva. A hátralévő napok ára az utolsó ${CFG.priceWindow} nap átlaga (most ${f1(f.level*f.fx/1000)} Ft/kWh), napszak-szorzóval (munkanap ${f2(f.cap.wd)}, hétvége ${f2(f.cap.we)}).</p>
+   <p>Fogyasztás: hátralévő napok munkanap/hétvége szerint, a referencia-hónaphoz igazítva (${f.refs.map(monthName).join(", ")}, szorzó ${f2(f.k)}), a hónap eddigi napjaival súlyozva (${f0(f.w*100)} %). Ünnepnap hétvégének számít.</p>
+   <p>Számla: E.ON MA2047088. Energiadíj = súlyozott HUPX Ft/kWh + ${f2(CFG.C)} Ft/kWh; lekötött 260 kW, ${f0(CFG.capacityFee)} Ft/hó. Késedelmi díjat nem jelez előre. A pénzeszközök díja −2 és 16 Ft/kWh között ingadozik, ez az energiaár után a legnagyobb bizonytalanság. A sávok a ${BT.length} lezárt hónapon végzett visszamérésből jönnek; kis minta.</p>`;
+}
+
+/* ---------- import ---------- */
+function handleFile(file){
+  $("msgs").replaceChildren();
+  if(/HU\d{6}[A-Z0-9]+-S\d+/.test(file.name) && !file.name.includes(CFG.meter)){msg(`A fájl neve más mérési pontot jelöl, mint ${CFG.meter}. Nem töltöttem be.`,"err");return}
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:"array",raw:false});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null});
+      const hi=rows.findIndex(r=>r&&r.some(c=>String(c).trim()==="+A"));
+      if(hi<0){msg("A fájlban nincs +A (wattos fogyasztás) oszlop. A W1000 exportban a +A mennyiséget is ki kell jelölni.","err");return}
+      const ci=rows[hi].findIndex(c=>String(c).trim()==="+A");
+      const per=new Map();
+      for(const r of rows.slice(hi+1)){
+        const t=String(r[0]??"").trim(), mt=t.match(/^(\d{4})\.(\d{2})\.(\d{2})\.?\s+(\d{1,2}):(\d{2})/);
+        if(!mt) continue;
+        let v=r[ci]; if(v==null||v==="") continue; v=typeof v==="number"?v:parseFloat(String(v).replace(/\s/g,"").replace(",","."));
+        if(isNaN(v)) continue;
+        const d=`${mt[1]}-${mt[2]}-${mt[3]}`; if(!per.has(d)) per.set(d,{k:0,n:0,pk:0}); const o=per.get(d); o.k+=v;o.n++;o.pk=Math.max(o.pk,v*4);
+      }
+      if(!per.size){msg("A fájlban nem találtam negyedórás értékeket.","err");return}
+      const ms=[...new Set([...per.keys()].map(d=>d.slice(0,7)))];
+      if(ms.length>1){msg(`A fájl több hónapot tartalmaz (${ms.join(", ")}). Egy hónapot tölts be egyszerre.`,"err");return}
+      const m=ms[0]; if(INV.has(m)){msg(`${monthName(m)} már lezárt hónap, a számlája bent van. Csak folyó hónapot lehet betölteni.`,"err");return}
+      let full=0,partial=[];
+      for(const x of monthDays(m)){const r=DAYS.get(x.d)||{d:x.d};delete r.k;delete r.pk;delete r.pw;delete r.estPw;DAYS.set(x.d,r)}
+      for(const [d,o] of per){const r=DAYS.get(d)||{d};
+        if(o.n>=92){r.k=o.k;r.pk=o.pk;if(r.ps!=null&&r.pw==null)r.estPw=true;full++}else partial.push(d.slice(8)+". ("+o.n+" negyedóra)");DAYS.set(d,r)}
+      imported={last:[...per.keys()].sort().pop()};
+      const tot=[...per.values()].reduce((s,o)=>s+o.k,0);
+      msg(`Betöltve: ${monthName(m)}, ${full} teljes nap, összesen ${f2(tot)} kWh.${partial.length?" Hiányos napok, kihagyva: "+partial.join(", ")+".":""} Az új napok súlyozott ára becsült (napi átlagár × napszak-szorzó), amíg az árakat nem frissítjük az oldalban.`,"ok");
+      const sel=$("selMonth"); if(![...sel.options].some(o=>o.value===m)){const o=new Option(monthName(m),m);sel.add(o)}
+      sel.value=m; $("rngDay").value=lastFull(m); render();
+    }catch(err){msg("A fájlt nem tudtam beolvasni: "+err.message,"err")}
+  };
+  rd.readAsArrayBuffer(file);
+}
+
+
+
+function init(){
+  BT=backtest();
+  const sel=$("selMonth"); months().forEach(m=>sel.add(new Option(monthName(m)+(INV.has(m)?"":" (folyó)"),m)));
+  const cur=months().filter(m=>!INV.has(m)).pop()||months().pop();
+  sel.value=cur; $("rngDay").max=lastFull(cur); $("rngDay").value=lastFull(cur);
+  $("inFx").value=INV.get(closedMonths().pop()).fx;
+  sel.onchange=()=>{const m=sel.value;$("rngDay").max=lastFull(m);$("rngDay").value=INV.has(m)?10:lastFull(m);render()};
+  $("rngDay").oninput=render; $("inFx").oninput=render; $("inPrice").oninput=render;
+  $("inFile").onchange=e=>e.target.files[0]&&handleFile(e.target.files[0]);
+  const dz=$("drop");
+  dz.ondragover=e=>{e.preventDefault();dz.classList.add("over")}; dz.ondragleave=()=>dz.classList.remove("over");
+  dz.ondrop=e=>{e.preventDefault();dz.classList.remove("over");e.dataTransfer.files[0]&&handleFile(e.dataTransfer.files[0])};
+  render();
+}
+const STORE="acr-aram-adatok";
+function boot(json,remember){
+  if(!json||!Array.isArray(json.days)||!Array.isArray(json.inv)||!json.days.length){msg("Ez nem az ACR áram adatfájl: hiányzik a days vagy az inv rész.","err");return false}
+  DATA=json; DAYS=new Map(json.days.map(r=>[r.d,{...r}])); INV=new Map(json.inv.map(r=>[r.month,r]));
+  if(remember){try{localStorage.setItem(STORE,JSON.stringify(json))}catch(e){}}
+  $("gate").hidden=true; $("app").hidden=false; $("ctrls").hidden=false; $("msgs").replaceChildren();
+  init(); return true;
+}
+$("inData").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{boot(JSON.parse(r.result),true)}catch(err){msg("A fájl nem olvasható JSON-ként: "+err.message,"err")}};r.readAsText(f)};
+$("btnForget").onclick=()=>{try{localStorage.removeItem(STORE)}catch(e){};location.reload()};
+try{const saved=localStorage.getItem(STORE);if(saved)boot(JSON.parse(saved),false)}catch(e){}
+</script>
+</body>
+</html>
