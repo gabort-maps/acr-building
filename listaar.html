@@ -1,4 +1,4 @@
-<!doctype html><html lang="hu"><head><!-- ACR listaár v2.2 --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="hu"><head><!-- ACR listaár v2.3 --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <script>// Ugyanaz a belépés és adatbázis (Supabase, public.docs), mint az acr-admin.html-ben.
 // ?helyi=1 : helyi próbamód, az adat csak ebben a böngészőben (localStorage) van.
@@ -243,7 +243,7 @@ table.ut { border-collapse:collapse; width:100%; font-size:12.5px; margin-top:6p
       <label class="f">Épület<select id="fB"></select></label>
       <label class="f">Szint<select id="fK"></select></label>
       <label class="f">Szárny<select id="fW"></select></label>
-      <label class="f">Mutatott helyiségek<select id="fS"><option value="ker">Bérelhető</option><option value="av">Csak kiadható</option><option value="all">Minden helyiség</option></select></label>
+      <label class="f">Mutatott helyiségek<select id="fS"><option value="ker">Minden bérelhető terület</option><option value="av">Csak a most kiadható</option><option value="all">Minden helyiség</option></select></label>
       <label class="f">Kijelzés pénzneme<select id="fC"><option value="">ahogy beállították</option><option>EUR</option><option>HUF</option></select></label>
       <span class="sp"><button class="btn" id="xls">Excel letöltés</button><button class="btn" id="prn">Nyomtatás / PDF</button></span>
     </div>
@@ -321,7 +321,9 @@ function mf(r) { if (isTer(r) || meas() === 'belso') return 1; const M = PACKS[r
 const area = (r) => ar0(r) * mf(r);
 const stOf = (r) => { const o = OV[r.id]; return (o && o.s) || (PACKS[r.b].def || {})[r.cat] || ''; };
 const nameOf = (r) => (OV[r.id] && OV[r.id].n) || r.name;
-const isUnit = (r) => { const s = stOf(r); if (s === 'common' || s === 'own') return false; if (s) return true; if (r.cat === 'Bérelhető' || isTer(r)) return true; if (r.cat) return false; return !COMMONRX.test(nameOf(r).trim()); };
+// bérelhető terület: a helyiség jellege dönt, nem a mostani állapota (bérelt, saját használat stb. is kap listaárat,
+// hogy a kiköltözés előtt is legyen ára); az admin állapota csak oszlopként látszik
+const isUnit = (r) => r.cat === 'Bérelhető' || isTer(r) || (!r.cat && !COMMONRX.test(nameOf(r).trim()));
 const hidden0 = (r) => r.par && !r.rem && !(OV[r.id] && +OV[r.id].a);   // összevont sor nulla területű része
 const lvlName = (b, k) => (PACKS[b].lvl.find((l) => l[0] === k) || [k, k])[1];
 const wingName = (b, w) => (PACKS[b].wings.find((x) => x[0] === w) || [w, w])[1];
@@ -652,7 +654,7 @@ function renderCalcTop() {
   fillPlace($('cB'), $('cK'), $('cW'), CS, { none: '— általános, egység nélkül —' });
   const us = CS.b ? PACKS[CS.b].rooms.filter((r) => inScope(r, CS.b, CS.k, CS.w) && !hidden0(r) && (isUnit(r) || baseUnit(r))) : [];
   if (CS.u && !us.some((r) => r.id === CS.u)) CS.u = '';
-  $('cU').innerHTML = `<option value="">${CS.b ? (us.length ? 'válassz egységet' : 'nincs egység') : '—'}</option>` + us.map((r) => { const p = priceOf(r); return `<option value="${esc(r.id)}"${r.id === CS.u ? ' selected' : ''}>${esc(r.code)} ${esc(nameOf(r))} · ${nf(p.net)} m²${isUnit(r) ? '' : ' · adminban: ' + (STL[stOf(r)] || STL[''])[0]}${p.cur ? '' : ' · nincs ár'}</option>`; }).join('');
+  $('cU').innerHTML = `<option value="">${CS.b ? (us.length ? 'válassz egységet' : 'nincs egység') : '—'}</option>` + us.map((r) => { const p = priceOf(r); return `<option value="${esc(r.id)}"${r.id === CS.u ? ' selected' : ''}>${esc(r.code)} ${esc(nameOf(r))} · ${nf(p.net)} m²${stOf(r) ? ' · ' + (STL[stOf(r)] || STL[''])[0].toLowerCase() : ''}${p.cur ? '' : ' · nincs ár'}</option>`; }).join('');
   $('cU').disabled = !CS.b; $('cLoad').disabled = !CS.u; $('cCur').value = CS.cur;
   $('cSrc').textContent = CS.src || 'Általános kalkulátor: nincs egység betöltve, minden érték kézzel adható meg.';
 }
