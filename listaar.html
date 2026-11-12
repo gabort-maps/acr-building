@@ -1,4 +1,4 @@
-<!doctype html><html lang="hu"><head><!-- ACR listaár v2.1 --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="hu"><head><!-- ACR listaár v2.2 --><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <script>// Ugyanaz a belépés és adatbázis (Supabase, public.docs), mint az acr-admin.html-ben.
 // ?helyi=1 : helyi próbamód, az adat csak ebben a böngészőben (localStorage) van.
@@ -76,8 +76,8 @@
     return {
       collection: (c) => ({ onSnapshot: (cb) => { (subs[c] = subs[c] || []).push(cb); setTimeout(() => fire(c), 0); } }),
       doc: (path) => { const i = path.indexOf('/'), c = path.slice(0, i), id = path.slice(i + 1); return {
-        set: async (d) => { save((a) => { (a[c] = a[c] || {})[id] = clean(d); }); fire(c); },
-        delete: async () => { save((a) => { if (a[c]) delete a[c][id]; }); fire(c); } }; },
+        set: async (d) => { save((a) => { (a[c] = a[c] || {})[id] = clean(d); }); },
+        delete: async () => { save((a) => { if (a[c]) delete a[c][id]; }); } }; },
       signOut: null,
     };
   }
@@ -360,7 +360,14 @@ window.LPDB.open().then((db) => {
 });
 async function put(id, data) {
   if (!canEdit()) { toast('Nincs jogosultságod az árak módosítására.'); return false; }
-  try { if (data) await DB.doc('pricelist/' + id).set(Object.assign({}, data, { by: window.LPDB.email(), at: new Date().toISOString() })); else await DB.doc('pricelist/' + id).delete(); toast('Mentve'); return true; }
+  try {
+    const d = data ? JSON.parse(JSON.stringify(Object.assign({}, data, { by: window.LPDB.email(), at: new Date().toISOString() }))) : null;
+    if (d) await DB.doc('pricelist/' + id).set(d); else await DB.doc('pricelist/' + id).delete();
+    // az adatbázis a saját mentést nem küldi vissza, ezért a helyi állapotot itt frissítjük
+    if (id === '_beallitas') SET = d || {}; else if (d) RULES[id] = d; else delete RULES[id];
+    for (const k in WSUM) delete WSUM[k];
+    toast('Mentve'); setTimeout(renderAll, 0); return true;
+  }
   catch (e) { toast('Hiba a mentésnél: ' + (e && e.message || e)); return false; }
 }
 
@@ -406,7 +413,10 @@ function priceWarn(v, groups) {
 // (az admin állapotától függetlenül: ha a szárnynak fizikailag van terasza)
 const hasTerrace = (b, k, w) => k !== '*' && w !== '*' && PACKS[b].rooms.some((r) => isTer(r) && inScope(r, b, k, w));
 // teraszok, amelyeket az admin állapota (közös / saját használat) miatt a bérelhető lista nem mutat
-const hiddenTer = (b, k, w) => PACKS[b].rooms.filter((r) => isTer(r) && inScope(r, b, k, w) && !isUnit(r));
+// bérelhető jellegű helyiség (az admin állapotát figyelmen kívül hagyva)
+const baseUnit = (r) => r.cat === 'Bérelhető' || isTer(r) || (!r.cat && !COMMONRX.test(nameOf(r).trim()));
+// helyiségek, amelyeket csak az admin állapota (közös / saját használat) miatt nem mutat a bérelhető lista
+const hiddenTer = (b, k, w) => PACKS[b].rooms.filter((r) => inScope(r, b, k, w) && !hidden0(r) && baseUnit(r) && !isUnit(r));
 const m2Cell = (p) => `${nf(p.net)}${p.tw != null && p.tw !== 100 ? `<br><span class="dim" title="beszámított terület">${nf(p.cnt)} (${nf(p.tw, 0)}%)</span>` : ''}`;
 
 function renderGen() {
@@ -445,10 +455,11 @@ function renderUnits() {
         <div class="row"><button class="btn pri" id="usave"${canEdit() ? '' : ' disabled'}>Egyedi ár mentése</button>${RULES[keyU(r.id)] ? `<button class="btn dan" id="udel"${canEdit() ? '' : ' disabled'}>Egyedi ár törlése</button>` : ''}</div></td></tr>` : ''}`;
   }).join('');
   const ht = S.show === 'all' ? [] : hiddenTer(S.b, S.k, S.w);
-  $('usum').innerHTML = `Egységek: ${rows.length} db, ${nf(sNet)} m² <span class="dim">${nSpec ? `· ${nSpec} egyedi ár ` : ''}${nNo ? `· ${nNo} ár nélkül` : ''}</span>${ht.length ? ` <span class="bad" style="font-weight:400;font-size:12px">· ${ht.length} terasz nem látszik az admin állapota miatt</span>` : ''}`;
+  $('usum').innerHTML = `Egységek: ${rows.length} db, ${nf(sNet)} m² <span class="dim">${nSpec ? `· ${nSpec} egyedi ár ` : ''}${nNo ? `· ${nNo} ár nélkül` : ''}</span>${ht.length ? ` <span class="bad" style="font-weight:400;font-size:12px">· ${ht.length} helyiség nem látszik az admin állapota miatt</span>` : ''}`;
+  const hiddenMsg = ht.length ? `<p class="bad" style="font-size:12px;margin-top:4px">Nem látszik, mert az admin oldalon nem bérelhetőnek van jelölve: ${ht.map((r) => `${esc(r.code)} ${esc(nameOf(r))} (${(STL[stOf(r)] || STL[''])[0]})`).join(', ')}. Az admin „Alaprajz és lista” fülén „Kiadható” vagy „Bérelt” állapotra állítva megjelenik; addig a „Minden helyiség” szűrővel látható.</p>` : '';
   $('tbl').innerHTML = rows.length ? `<table class="ut"><thead><tr><th>Egység</th><th>Szint / szárny</th><th>Állapot</th><th class="n">m²</th>${TERMS.map(([, l]) => `<th class="n">${l}</th>`).join('')}<th class="n">Üzem. díj</th><th class="n">Közös %</th><th>Pénznem</th><th></th></tr></thead><tbody>${body}</tbody></table>
-    ${ht.length ? `<p class="bad" style="font-size:12px;margin-top:4px">Nem látszik, mert az admin oldalon nem bérelhetőnek van jelölve: ${ht.map((r) => `${esc(r.code)} ${esc(nameOf(r))} (${(STL[stOf(r)] || STL[''])[0]})`).join(', ')}. Az admin „Alaprajz és lista” fülén „Kiadható” vagy „Bérelt” állapotra állítva megjelenik; addig a „Minden helyiség” szűrővel látható.</p>` : ''}
-    <p class="hint" style="margin-top:4px">Díjak /m²/hó. Teraszoknál a második sor a beszámított terület. Terület: helyiséglista szerint, ${esc(MEAS[meas()])}${meas() !== 'belso' ? ' (a szárny falmértéke arányában)' : ''}.</p>` : '<p class="hint">Ebben a részben nincs a szűrőnek megfelelő helyiség.</p>';
+    ${hiddenMsg}
+    <p class="hint" style="margin-top:4px">Díjak /m²/hó. Teraszoknál a második sor a beszámított terület. Terület: helyiséglista szerint, ${esc(MEAS[meas()])}${meas() !== 'belso' ? ' (a szárny falmértéke arányában)' : ''}.</p>` : `<p class="hint">Ebben a részben nincs a szűrőnek megfelelő helyiség.</p>${hiddenMsg}`;
   $('units').open = S.uOpen || !!S.edit;
   if ($('usave')) {
     const id = S.edit, r = ALL.find((x) => x.id === id);
@@ -639,9 +650,9 @@ function check(x) {
 const tierIdx = (T) => (T <= 12 ? 0 : T <= 24 ? 1 : T <= 36 ? 2 : 3);
 function renderCalcTop() {
   fillPlace($('cB'), $('cK'), $('cW'), CS, { none: '— általános, egység nélkül —' });
-  const us = CS.b ? unitsIn(CS.b, CS.k, CS.w, 'ker') : [];
+  const us = CS.b ? PACKS[CS.b].rooms.filter((r) => inScope(r, CS.b, CS.k, CS.w) && !hidden0(r) && (isUnit(r) || baseUnit(r))) : [];
   if (CS.u && !us.some((r) => r.id === CS.u)) CS.u = '';
-  $('cU').innerHTML = `<option value="">${CS.b ? (us.length ? 'válassz egységet' : 'nincs egység') : '—'}</option>` + us.map((r) => { const p = priceOf(r); return `<option value="${esc(r.id)}"${r.id === CS.u ? ' selected' : ''}>${esc(r.code)} ${esc(nameOf(r))} · ${nf(p.net)} m²${p.cur ? '' : ' · nincs ár'}</option>`; }).join('');
+  $('cU').innerHTML = `<option value="">${CS.b ? (us.length ? 'válassz egységet' : 'nincs egység') : '—'}</option>` + us.map((r) => { const p = priceOf(r); return `<option value="${esc(r.id)}"${r.id === CS.u ? ' selected' : ''}>${esc(r.code)} ${esc(nameOf(r))} · ${nf(p.net)} m²${isUnit(r) ? '' : ' · adminban: ' + (STL[stOf(r)] || STL[''])[0]}${p.cur ? '' : ' · nincs ár'}</option>`; }).join('');
   $('cU').disabled = !CS.b; $('cLoad').disabled = !CS.u; $('cCur').value = CS.cur;
   $('cSrc').textContent = CS.src || 'Általános kalkulátor: nincs egység betöltve, minden érték kézzel adható meg.';
 }
