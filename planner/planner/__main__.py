@@ -1,13 +1,19 @@
-"""Command line: python -m planner extract <building_id>"""
+"""Command line:
+    python -m planner extract <building_id>   floor models and area check
+    python -m planner form <building_id>      brief form (HTML)
+"""
 import sys
 
-from . import model
+from . import form, model
 
 
 def main(argv):
-    if len(argv) != 3 or argv[1] != "extract":
+    if len(argv) != 3 or argv[1] not in ("extract", "form"):
         print(__doc__)
         return 2
+    if argv[1] == "form":
+        print(form.build(argv[2]))
+        return 0
     building = model.load_building(argv[2])
     expect = {(f["id"], u["id"]): u.get("expect_m2") for f in building["floors"] for u in f["units"]}
     failed = False

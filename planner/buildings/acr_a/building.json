@@ -327,13 +327,15 @@
           "id": "S",
           "name": "South Part",
           "expect_m2": 125,
-          "outline": "south_4"
+          "outline": "south_4",
+          "terrace": true
         },
         {
           "id": "N",
           "name": "North Part",
           "expect_m2": 59,
-          "outline": "north_4"
+          "outline": "north_4",
+          "terrace": true
         }
       ]
     }
@@ -343,5 +345,10 @@
       "source": "E_01_pince.DWG",
       "reason": "Basement drawing is not in metres; scale not established. The tool refuses it rather than guess."
     }
-  ]
+  ],
+  "navigation": {
+    "courtyard_side": "low_y",
+    "back_side": "high_y",
+    "bays": "counted from the end wall along the column lines"
+  }
 }

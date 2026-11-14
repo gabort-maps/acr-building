@@ -1,0 +1,54 @@
+{
+  "_comment": "Planning allowances used by the brief form to check that a programme can fit before any layout is attempted. They are budget figures, not placements: the layout engine places by clearance rules and has the final word.",
+  "circulation_factor": 0.15,
+  "tight_ratio": 0.9,
+  "levels": [
+    {"code": "L1", "label": "Standard"},
+    {"code": "L2", "label": "Middle management"},
+    {"code": "L3", "label": "Executive"}
+  ],
+  "workstations": [
+    {"code": "WS1", "label": "Bench desk 1400", "m2": 5.0},
+    {"code": "WS2", "label": "Sit-stand desk 1600", "m2": 6.0},
+    {"code": "WS3", "label": "Executive desk 1800", "m2": 9.0}
+  ],
+  "rooms": [
+    {"code": "OF1", "label": "Private office", "m2": 14.0, "enclosure": "office"},
+    {"code": "OF2", "label": "Manager office with meeting table", "m2": 27.0, "enclosure": "office"},
+    {"code": "M4", "label": "Meeting room, 4 seats", "m2": 12.0, "enclosure": "meeting"},
+    {"code": "M6", "label": "Meeting room, 6 seats", "m2": 16.0, "enclosure": "meeting"},
+    {"code": "M10", "label": "Meeting room, 10 seats", "m2": 28.0, "enclosure": "meeting"},
+    {"code": "PB", "label": "Phone booth", "m2": 2.0, "group": true}
+  ],
+  "kitchens": [
+    {"code": "K0", "label": "None", "m2": 0, "seats": false},
+    {"code": "K1", "label": "Kitchenette", "m2": 6.0, "seats": false},
+    {"code": "K2", "label": "Full kitchen with dining table", "m2": 14.0, "m2_per_seat": 1.4, "seats": true, "enclosure": "kitchen"}
+  ],
+  "extras": [
+    {"code": "RC", "label": "Reception", "m2": 10.0},
+    {"code": "LS", "label": "Lounge", "m2": 9.0},
+    {"code": "ST", "label": "Storage", "m2": 6.0},
+    {"code": "SR", "label": "Server room", "m2": 6.0}
+  ],
+  "enclosures": {
+    "office": {"label": "Private offices", "default_wall": "PW", "default_door": "HD"},
+    "meeting": {"label": "Meeting rooms", "default_wall": "GW", "default_door": "GD"},
+    "kitchen": {"label": "Kitchen front", "default_wall": "GW", "default_door": "SD"}
+  },
+  "walls": [
+    {"code": "PW", "label": "Plaster"},
+    {"code": "GW", "label": "Glass"},
+    {"code": "AW", "label": "Acoustic"}
+  ],
+  "doors": [
+    {"code": "HD", "label": "Hinged"},
+    {"code": "SD", "label": "Sliding"},
+    {"code": "GD", "label": "Glass"}
+  ],
+  "terrace": [
+    {"code": "TL", "label": "Lounge set", "kind": "toggle"},
+    {"code": "TB", "label": "Bistro sets", "kind": "count"},
+    {"code": "TP", "label": "Planters along the railing", "kind": "toggle"}
+  ]
+}

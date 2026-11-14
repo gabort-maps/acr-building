@@ -1,0 +1,61 @@
+{
+  "_comment": "Example shown when the form opens: the 4th-floor south office as built in November 2026. Zones are rough rectangles in the drawing frame.",
+  "floor": "4",
+  "unit": "S",
+  "reference": "Example · 4th floor south office",
+  "level": "L3",
+  "workstations": {
+    "WS2": 6
+  },
+  "rooms": {
+    "OF2": 1
+  },
+  "kitchen": {
+    "type": "K2",
+    "seats": 8
+  },
+  "extras": [
+    "LS"
+  ],
+  "enclosures": {
+    "office": {
+      "wall": "PW",
+      "door": "HD"
+    },
+    "kitchen": {
+      "wall": "GW",
+      "door": "SD"
+    }
+  },
+  "terrace": {
+    "TL": true,
+    "TB": 2,
+    "TP": true
+  },
+  "zones": {
+    "OF2-1": [
+      218.7,
+      7.8,
+      224.2,
+      13.2
+    ],
+    "K": [
+      218.6,
+      15.7,
+      224.3,
+      19.4
+    ],
+    "WS": [
+      212.2,
+      7.8,
+      218.6,
+      17.1
+    ],
+    "LS": [
+      218.7,
+      13.3,
+      224.2,
+      15.6
+    ]
+  }
+}

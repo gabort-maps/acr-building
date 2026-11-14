@@ -1,0 +1,398 @@
+<title>ACR Layout Brief</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: plan on the left stays in view while the form scrolls on the right; the brief sits full width below. */
+:root {
+  --bg: #f2f4f7; --panel: #ffffff; --ink: #17202a; --muted: #5a6775; --line: #d3dae2;
+  --accent: #1d5fc2; --accent-ink: #ffffff; --wall: #27303a; --cell: #e9eef4; --dim: #c3ccd6;
+  --ok: #1c7f47; --warn: #a96b12; --bad: #b8352a;
+  --z0: #2f7fd1; --z1: #d9822b; --z2: #2f9e6b; --z3: #b0489c; --z4: #c2a11a; --z5: #5a63d6; --z6: #cf4f4f; --z7: #2aa3ad; --z8: #7d6a4f;
+  --display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --text: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11151a; --panel: #1a2028; --ink: #e7ecf1; --muted: #9aa6b3; --line: #2d3742;
+  --accent: #74abff; --accent-ink: #0c1420; --wall: #cdd6df; --cell: #232c36; --dim: #45505c;
+  --ok: #5fcf8e; --warn: #e6b052; --bad: #f08a80; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11151a; --panel: #1a2028; --ink: #e7ecf1; --muted: #9aa6b3; --line: #2d3742;
+  --accent: #74abff; --accent-ink: #0c1420; --wall: #cdd6df; --cell: #232c36; --dim: #45505c;
+  --ok: #5fcf8e; --warn: #e6b052; --bad: #f08a80; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font-family: var(--text); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+header h1 { font-family: var(--display); font-size: 24px; font-weight: 600; margin: 0; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 70ch; }
+.cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; min-width: 0; }
+.plan { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 900px) { .plan { position: static; } }
+h2 { font-family: var(--display); font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 150px; }
+.field > span { font-size: 12px; color: var(--muted); }
+select, input[type="text"] { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; min-width: 0; width: 100%; }
+select:focus-visible, input:focus-visible, button:focus-visible, .cellp:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+svg.floor { width: 100%; height: auto; display: block; background: var(--bg); border-radius: 4px; touch-action: manipulation; }
+.wallp { fill: var(--wall); }
+.colp { fill: var(--wall); }
+.unit-other { fill: none; stroke: var(--dim); stroke-width: .08; stroke-dasharray: .3 .3; }
+.unit-sel { fill: none; stroke: var(--accent); stroke-width: .12; }
+.cellp { fill: var(--cell); stroke: var(--line); stroke-width: .04; cursor: pointer; }
+.cellp:hover { stroke: var(--accent); stroke-width: .1; }
+.bayline { stroke: var(--muted); stroke-width: .05; stroke-dasharray: .25 .2; }
+.lbl { fill: var(--muted); font-family: var(--text); font-size: .62px; }
+.lbl.strong { fill: var(--ink); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: inherit; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.chip i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.chip[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 600; }
+.chip small { color: var(--muted); font-weight: 400; }
+.chip small.warn { color: var(--warn); }
+.hint { color: var(--muted); font-size: 12.5px; margin: 0; }
+.form { display: flex; flex-direction: column; gap: 12px; }
+.line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); }
+.line:first-of-type { border-top: 0; }
+.line label, .line .name { min-width: 0; }
+.line .sub { color: var(--muted); font-size: 12px; }
+.step { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; flex: none; }
+.step button { font: inherit; width: 30px; height: 30px; border: 0; background: var(--bg); color: var(--ink); cursor: pointer; }
+.step output { width: 34px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+.pair { display: flex; gap: 6px; flex: none; }
+.pair select { width: auto; }
+.cap { display: flex; flex-direction: column; gap: 6px; }
+.bar { height: 10px; background: var(--cell); border-radius: 5px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--ok); width: 0; }
+.cap[data-s="tight"] .bar > div { background: var(--warn); }
+.cap[data-s="over"] .bar > div { background: var(--bad); }
+.capnum { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.pill { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.cap[data-s="ok"] .pill { color: var(--ok); } .cap[data-s="tight"] .pill { color: var(--warn); } .cap[data-s="over"] .pill { color: var(--bad); }
+.btn { font: inherit; font-weight: 600; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); border-radius: 4px; padding: 6px 12px; cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.out { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 900px) { .out { grid-template-columns: minmax(0, 1fr); } }
+textarea { width: 100%; min-height: 260px; font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 10px; resize: vertical; box-sizing: border-box; }
+.blocked { color: var(--bad); font-weight: 600; margin: 0 0 8px; }
+.tag { font-size: 11.5px; color: var(--warn); border: 1px solid var(--warn); border-radius: 3px; padding: 0 6px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1 id="title">Layout brief</h1>
+    <p>Pick the space, say what goes in it, and paint roughly where each part should sit. The brief at the bottom is what the layout tool reads. Nothing here is free text, so nothing is left to interpretation.</p>
+  </header>
+
+  <div class="cols">
+    <section class="panel plan" aria-label="Floor plan">
+      <div class="row">
+        <label class="field"><span>Floor</span><select id="floor"></select></label>
+        <label class="field"><span>Unit</span><select id="unit"></select></label>
+      </div>
+      <svg class="floor" id="svg" role="img" aria-label="Floor plan with bays and rows"></svg>
+      <div>
+        <h2>Rough sketch</h2>
+        <p class="hint" id="sketchhint">Choose a part below, then tap squares on the plan to mark where it goes. Tap a painted square again to clear it. Anything you leave unpainted, the tool places itself.</p>
+      </div>
+      <div class="chips" id="zones"></div>
+    </section>
+
+    <section class="form">
+      <div class="panel">
+        <h2>Enquiry</h2>
+        <div class="row">
+          <label class="field"><span>Reference</span><input type="text" id="ref" maxlength="60" autocomplete="off"></label>
+          <label class="field"><span>Fit-out level</span><select id="level"></select></label>
+        </div>
+        <p class="hint" id="exnote" hidden style="margin-top:8px"><span class="tag">Example</span> Loaded with the 4th-floor south office so you can see a filled brief. Change anything, or clear it.</p>
+      </div>
+      <div class="panel cap" id="cap" data-s="ok">
+        <h2>Does it fit</h2>
+        <div class="capnum"><span id="capleft"></span><span class="pill" id="cappill"></span></div>
+        <div class="bar"><div id="capbar"></div></div>
+        <p class="hint" id="capnote"></p>
+      </div>
+      <div class="panel"><h2>Workstations</h2><div id="ws"></div></div>
+      <div class="panel"><h2>Rooms</h2><div id="rooms"></div></div>
+      <div class="panel">
+        <h2>Kitchen</h2>
+        <div class="line"><label for="kitchen" class="name">Type</label><select id="kitchen" style="width:auto;max-width:60%"></select></div>
+        <div class="line" id="seatsline"><span class="name">Dining seats</span><span class="step" data-k="seats"><button type="button" data-d="-1" aria-label="Fewer seats">−</button><output id="seats">0</output><button type="button" data-d="1" aria-label="More seats">+</button></span></div>
+      </div>
+      <div class="panel"><h2>Extras</h2><div id="extras"></div></div>
+      <div class="panel"><h2>Walls and doors</h2><div id="encl"></div><p class="hint" id="enclnone">Add an office, a meeting room or a full kitchen to choose walls.</p></div>
+      <div class="panel" id="terrpanel"><h2>Roof terrace</h2><div id="terr"></div></div>
+      <div class="row">
+        <button type="button" class="btn ghost" id="clear">Clear the form</button>
+        <button type="button" class="btn ghost" id="loadex">Load the example</button>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <p class="blocked" id="blocked" hidden></p>
+    <div class="out">
+      <div>
+        <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Brief, in words</h2><button type="button" class="btn" data-copy="txt">Copy</button></div>
+        <textarea id="txt" readonly spellcheck="false" aria-label="Brief in words"></textarea>
+      </div>
+      <div>
+        <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Brief, for the tool</h2><button type="button" class="btn" data-copy="json">Copy</button></div>
+        <textarea id="json" readonly spellcheck="false" aria-label="Brief as data"></textarea>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const D = /*__DATA__*/null;
+const R = D.rules, $ = id => document.getElementById(id);
+const KEY = 'brief-' + D.building.id;
+const NS = 'http://www.w3.org/2000/svg';
+const byCode = (list, code) => list.find(x => x.code === code);
+let S, active = null;
+
+function blank() {
+  return { floor: D.floors[0].id, unit: D.floors[0].units[0].id, ref: '', level: R.levels[0].code, ws: {}, rooms: {},
+           kitchen: 'K0', seats: 6, extras: {}, encl: {}, terr: {}, paint: {}, example: false };
+}
+function fromExample() {
+  const e = D.example, s = blank();
+  if (!e) return s;
+  Object.assign(s, { floor: e.floor, unit: e.unit, ref: e.reference, level: e.level, ws: { ...e.workstations }, rooms: { ...e.rooms },
+    kitchen: e.kitchen.type, seats: e.kitchen.seats, terr: { ...e.terrace }, example: true });
+  e.extras.forEach(c => s.extras[c] = true);
+  Object.entries(e.enclosures).forEach(([k, v]) => s.encl[k] = { ...v });
+  const u = unitOf(s);
+  Object.entries(e.zones).forEach(([zone, [x0, y0, x1, y1]]) => u.grid.cells.forEach(c => {
+    const cx = (c.bbox[0] + c.bbox[2]) / 2, cy = (c.bbox[1] + c.bbox[3]) / 2;
+    if (cx > x0 && cx < x1 && cy > y0 && cy < y1 && !s.paint[c.id]) s.paint[c.id] = zone;
+  }));
+  return s;
+}
+function floorOf(s) { return D.floors.find(f => f.id === s.floor) || D.floors[0]; }
+function unitOf(s) { const f = floorOf(s); return f.units.find(u => u.id === s.unit) || f.units[0]; }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+function load() { try { const v = JSON.parse(localStorage.getItem(KEY)); if (v && v.floor) return Object.assign(blank(), v); } catch (e) {} return null; }
+
+function zones() {
+  const z = [];
+  const wsNeed = R.workstations.reduce((a, w) => a + (S.ws[w.code] || 0) * w.m2, 0);
+  if (wsNeed) z.push({ key: 'WS', label: 'Workstations', need: wsNeed });
+  R.rooms.forEach(r => {
+    const n = S.rooms[r.code] || 0;
+    if (!n) return;
+    if (r.group) z.push({ key: r.code, label: r.label + (n > 1 ? 's' : ''), need: n * r.m2 });
+    else for (let i = 1; i <= n; i++) z.push({ key: r.code + '-' + i, label: r.label + (n > 1 ? ' ' + i : ''), need: r.m2 });
+  });
+  const k = byCode(R.kitchens, S.kitchen);
+  if (k && k.m2) z.push({ key: 'K', label: k.label, need: k.m2 + (k.seats ? S.seats * k.m2_per_seat : 0) });
+  R.extras.forEach(x => { if (S.extras[x.code]) z.push({ key: x.code, label: x.label, need: x.m2 }); });
+  z.forEach((q, i) => q.color = 'var(--z' + (i % 9) + ')');
+  return z;
+}
+function capacity(z) {
+  const prog = z.reduce((a, q) => a + q.need, 0), total = prog * (1 + R.circulation_factor), area = unitOf(S).area_m2;
+  const ratio = area ? total / area : 0;
+  return { prog, total, area, ratio, status: ratio > 1 ? 'over' : ratio > R.tight_ratio ? 'tight' : 'ok' };
+}
+function sketch(q) {
+  const cells = unitOf(S).grid.cells.filter(c => S.paint[c.id] === q.key);
+  if (!cells.length) return null;
+  const area = cells.reduce((a, c) => a + c.area_m2, 0);
+  const rect = [Math.min(...cells.map(c => c.bbox[0])), Math.min(...cells.map(c => c.bbox[1])), Math.max(...cells.map(c => c.bbox[2])), Math.max(...cells.map(c => c.bbox[3]))];
+  const bays = {};
+  cells.forEach(c => (bays[c.bay] = bays[c.bay] || new Set()).add(c.row_name));
+  const where = Object.keys(bays).sort((a, b) => a - b).map(b => 'bay ' + b + ': ' + [...bays[b]].join(', '));
+  return { cells: cells.map(c => c.id), area, rect: rect.map(v => +v.toFixed(3)), where };
+}
+
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+const pts = poly => poly.map(p => p[0] + ',' + (-p[1])).join(' ');
+function drawPlan(z) {
+  const f = floorOf(S), u = unitOf(S), g = u.grid, svg = $('svg'), m = 3.2, mx = 5.8;
+  const [x0, y0, x1, y1] = f.bbox;
+  svg.setAttribute('viewBox', [x0 - mx, -y1 - m, x1 - x0 + 2 * mx, y1 - y0 + 2 * m].join(' '));
+  svg.textContent = '';
+  const colorOf = Object.fromEntries(z.map(q => [q.key, q.color]));
+  f.units.forEach(o => { if (o.id !== u.id) svg.append(el('polygon', { points: pts(o.polygon), class: 'unit-other' })); });
+  g.cells.forEach(c => {
+    const zone = S.paint[c.id], p = el('polygon', { points: pts(c.polygon), class: 'cellp', tabindex: 0, 'data-cell': c.id });
+    if (zone && colorOf[zone]) { p.style.fill = colorOf[zone]; p.style.fillOpacity = .55; }
+    p.append(el('title', {}, 'Bay ' + c.bay + ', ' + c.row_name));
+    svg.append(p);
+  });
+  f.walls.forEach(w => svg.append(el('polygon', { points: pts(w), class: 'wallp', 'pointer-events': 'none' })));
+  f.columns.forEach(w => svg.append(el('polygon', { points: pts(w), class: 'colp', 'pointer-events': 'none' })));
+  svg.append(el('polygon', { points: pts(u.polygon), class: 'unit-sel', 'pointer-events': 'none' }));
+  const ux0 = g.bay_lines[0], ux1 = g.bay_lines[g.bay_lines.length - 1], uy0 = g.row_lines[0], uy1 = g.row_lines[g.row_lines.length - 1];
+  g.bay_lines.slice(1, -1).forEach(x => svg.append(el('line', { x1: x, x2: x, y1: -uy0, y2: -uy1 - .9, class: 'bayline' })));
+  const low = g.end_wall === 'low_x';
+  for (let i = 0; i < g.bays; i++) {
+    const n = low ? i + 1 : g.bays - i, cx = (g.bay_lines[i] + g.bay_lines[i + 1]) / 2;
+    svg.append(el('text', { x: cx, y: -uy1 - 1.1, 'text-anchor': 'middle', class: 'lbl strong' }, 'Bay ' + n));
+  }
+  const ex = low ? ux0 - .5 : ux1 + .5, anchor = low ? 'end' : 'start';
+  for (let j = 0; j < g.rows; j++) {
+    const cy = (g.row_lines[j] + g.row_lines[j + 1]) / 2;
+    svg.append(el('text', { x: ex, y: -cy + .2, 'text-anchor': anchor, class: 'lbl' }, g.row_names[j].replace('centre, ', '')));
+  }
+  svg.append(el('text', { x: low ? ux0 : ux1, y: -uy0 + 1.5, 'text-anchor': low ? 'start' : 'end', class: 'lbl strong' }, 'End wall'));
+  svg.append(el('text', { x: low ? ux1 : ux0, y: -uy0 + 1.5, 'text-anchor': low ? 'end' : 'start', class: 'lbl strong' }, 'Core side'));
+  svg.append(el('text', { x: (ux0 + ux1) / 2, y: -uy0 + 1.5, 'text-anchor': 'middle', class: 'lbl' }, 'courtyard'));
+  svg.append(el('text', { x: (ux0 + ux1) / 2, y: -uy1 - 2.1, 'text-anchor': 'middle', class: 'lbl' }, 'back of building'));
+}
+
+function stepper(key, val, label) {
+  return '<span class="step" data-k="' + key + '"><button type="button" data-d="-1" aria-label="Fewer ' + label + '">−</button><output>' + val + '</output><button type="button" data-d="1" aria-label="More ' + label + '">+</button></span>';
+}
+function options(list, sel) { return list.map(o => '<option value="' + o.code + '"' + (o.code === sel ? ' selected' : '') + '>' + o.label + '</option>').join(''); }
+function render() {
+  const f = floorOf(S), u = unitOf(S);
+  S.floor = f.id; S.unit = u.id;
+  const cellIds = new Set(u.grid.cells.map(c => c.id)), z = zones(), keys = new Set(z.map(q => q.key));
+  Object.keys(S.paint).forEach(id => { if (!cellIds.has(id) || !keys.has(S.paint[id])) delete S.paint[id]; });
+  if (!keys.has(active)) active = z.length ? z[0].key : null;
+
+  $('title').textContent = D.building.name + ' · layout brief';
+  $('floor').innerHTML = D.floors.map(x => '<option value="' + x.id + '"' + (x.id === f.id ? ' selected' : '') + '>' + x.name + '</option>').join('');
+  $('unit').innerHTML = f.units.map(x => '<option value="' + x.id + '"' + (x.id === u.id ? ' selected' : '') + '>' + x.name + ' · ' + x.area_label_m2 + ' m²</option>').join('');
+  $('level').innerHTML = options(R.levels, S.level);
+  if (document.activeElement !== $('ref')) $('ref').value = S.ref;
+  $('exnote').hidden = !S.example;
+
+  $('ws').innerHTML = R.workstations.map(w => '<div class="line"><span class="name">' + w.label + ' <span class="sub">' + w.m2 + ' m² each</span></span>' + stepper('ws.' + w.code, S.ws[w.code] || 0, w.label) + '</div>').join('');
+  $('rooms').innerHTML = R.rooms.map(r => '<div class="line"><span class="name">' + r.label + ' <span class="sub">' + r.m2 + ' m²</span></span>' + stepper('rooms.' + r.code, S.rooms[r.code] || 0, r.label) + '</div>').join('');
+  $('kitchen').innerHTML = options(R.kitchens, S.kitchen);
+  const k = byCode(R.kitchens, S.kitchen);
+  $('seatsline').hidden = !k.seats; $('seats').textContent = S.seats;
+  $('extras').innerHTML = R.extras.map(x => '<div class="line"><label for="x-' + x.code + '">' + x.label + ' <span class="sub">' + x.m2 + ' m²</span></label><input type="checkbox" id="x-' + x.code + '" data-x="' + x.code + '"' + (S.extras[x.code] ? ' checked' : '') + '></div>').join('');
+
+  const used = new Set();
+  R.rooms.forEach(r => { if (r.enclosure && S.rooms[r.code]) used.add(r.enclosure); });
+  if (k.enclosure) used.add(k.enclosure);
+  $('encl').innerHTML = [...used].map(e => {
+    const def = R.enclosures[e], cur = S.encl[e] || (S.encl[e] = { wall: def.default_wall, door: def.default_door });
+    return '<div class="line"><span class="name">' + def.label + '</span><span class="pair"><select data-e="' + e + '" data-p="wall" id="e-' + e + '-wall" aria-label="' + def.label + ' wall">' + options(R.walls, cur.wall) + '</select><select data-e="' + e + '" data-p="door" id="e-' + e + '-door" aria-label="' + def.label + ' door">' + options(R.doors, cur.door) + '</select></span></div>';
+  }).join('');
+  $('enclnone').hidden = used.size > 0;
+  $('terrpanel').hidden = !u.terrace;
+  $('terr').innerHTML = R.terrace.map(t => t.kind === 'count'
+    ? '<div class="line"><span class="name">' + t.label + '</span>' + stepper('terr.' + t.code, S.terr[t.code] || 0, t.label) + '</div>'
+    : '<div class="line"><label for="t-' + t.code + '">' + t.label + '</label><input type="checkbox" id="t-' + t.code + '" data-t="' + t.code + '"' + (S.terr[t.code] ? ' checked' : '') + '></div>').join('');
+
+  const sk = Object.fromEntries(z.map(q => [q.key, sketch(q)]));
+  $('zones').innerHTML = z.length ? z.map(q => {
+    const s = sk[q.key], small = s && s.area < .85 * q.need;
+    return '<button type="button" class="chip" data-zone="' + q.key + '" aria-pressed="' + (q.key === active) + '"><i style="background:' + q.color + '"></i>' + q.label + ' <small' + (small ? ' class="warn"' : '') + '>' + (s ? Math.round(s.area) + ' of ' + Math.round(q.need) + ' m²' : 'tool decides') + '</small></button>';
+  }).join('') : '<p class="hint">Add workstations or rooms on the right to get parts you can place.</p>';
+  drawPlan(z);
+
+  const c = capacity(z), cap = $('cap');
+  cap.dataset.s = c.status;
+  $('capleft').textContent = Math.round(c.total) + ' m² needed of ' + c.area.toFixed(1) + ' m² available';
+  $('cappill').textContent = c.status === 'ok' ? 'Fits' : c.status === 'tight' ? 'Tight' : 'Does not fit';
+  $('capbar').style.width = Math.min(100, c.ratio * 100) + '%';
+  $('capnote').textContent = c.status === 'over'
+    ? 'Over by ' + Math.ceil(c.total - c.area) + ' m². Remove something or pick a larger unit; no brief is issued until it fits.'
+    : 'Programme ' + Math.round(c.prog) + ' m² plus ' + Math.round(R.circulation_factor * 100) + '% for walkways. A budget check only; the layout tool has the final word on clearances.';
+  brief(z, sk, c);
+  save();
+}
+
+function brief(z, sk, c) {
+  const f = floorOf(S), u = unitOf(S), ok = c.status !== 'over' && z.length > 0;
+  $('blocked').hidden = ok;
+  $('blocked').textContent = !z.length ? 'Nothing to place yet. Add workstations or rooms.' : 'No brief: the programme needs ' + Math.round(c.total) + ' m² and the unit has ' + c.area.toFixed(1) + ' m².';
+  if (!ok) { $('txt').value = ''; $('json').value = ''; return; }
+  const lab = (list, code) => byCode(list, code).label;
+  const count = (list, obj) => list.filter(i => obj[i.code]).map(i => obj[i.code] + ' × ' + i.label);
+  const extras = R.extras.filter(x => S.extras[x.code]), k = byCode(R.kitchens, S.kitchen);
+  const usedEncl = Object.keys(R.enclosures).filter(e => document.getElementById('e-' + e + '-wall'));
+  const terr = u.terrace ? R.terrace.filter(t => S.terr[t.code]) : [];
+  const L = [];
+  L.push((S.ref || 'Untitled enquiry'));
+  L.push(D.building.name + ', ' + f.name + ', ' + u.name + ' (' + u.area_label_m2 + ' m² lettable, ' + u.area_m2.toFixed(2) + ' m² measured)');
+  L.push('Fit-out level: ' + lab(R.levels, S.level));
+  L.push('');
+  L.push('PROGRAMME');
+  count(R.workstations, S.ws).forEach(t => L.push('- ' + t));
+  count(R.rooms, S.rooms).forEach(t => L.push('- ' + t));
+  if (k.m2) L.push('- ' + k.label + (k.seats ? ', ' + S.seats + ' dining seats' : ''));
+  extras.forEach(x => L.push('- ' + x.label));
+  if (usedEncl.length) { L.push(''); L.push('WALLS AND DOORS'); usedEncl.forEach(e => L.push('- ' + R.enclosures[e].label + ': ' + lab(R.walls, S.encl[e].wall).toLowerCase() + ' walls, ' + lab(R.doors, S.encl[e].door).toLowerCase() + ' door')); }
+  L.push(''); L.push('WHERE (bays counted from the end wall; rows from the courtyard side to the back)');
+  z.forEach(q => { const s = sk[q.key]; L.push('- ' + q.label + ': ' + (s ? s.where.join('; ') + ' (about ' + Math.round(s.area) + ' m² sketched, ' + Math.round(q.need) + ' m² allowed for)' : 'tool decides')); });
+  if (terr.length) { L.push(''); L.push('ROOF TERRACE'); terr.forEach(t => L.push('- ' + (t.kind === 'count' ? S.terr[t.code] + ' × ' : '') + t.label)); }
+  L.push(''); L.push('CHECK: ' + Math.round(c.total) + ' m² needed including walkways, ' + c.area.toFixed(1) + ' m² available (' + Math.round(c.ratio * 100) + '%).');
+  $('txt').value = L.join('\n');
+
+  const pick = (list, obj) => Object.fromEntries(list.filter(i => obj[i.code]).map(i => [i.code, obj[i.code]]));
+  $('json').value = JSON.stringify({
+    schema: 'planner.brief/1', reference: S.ref || null, building: D.building.id, floor: f.id, unit: u.id,
+    unit_area_m2: u.area_m2, floor_drawing_sha256: f.source_sha256, fit_out_level: S.level,
+    workstations: pick(R.workstations, S.ws), rooms: pick(R.rooms, S.rooms),
+    kitchen: { type: S.kitchen, seats: k.seats ? S.seats : 0 }, extras: extras.map(x => x.code),
+    enclosures: Object.fromEntries(usedEncl.map(e => [e, S.encl[e]])),
+    terrace: Object.fromEntries(terr.map(t => [t.code, S.terr[t.code]])),
+    zones: z.map(q => { const s = sk[q.key]; return { key: q.key, label: q.label, allowance_m2: +q.need.toFixed(1), placement: s ? 'sketched' : 'tool decides', cells: s ? s.cells : [], rect: s ? s.rect : null, sketched_m2: s ? +s.area.toFixed(1) : 0 }; }),
+    capacity: { programme_m2: +c.prog.toFixed(1), with_walkways_m2: +c.total.toFixed(1), unit_m2: c.area, ratio: +c.ratio.toFixed(3), status: c.status }
+  }, null, 2);
+}
+
+function touched() { S.example = false; }
+document.addEventListener('click', e => {
+  const t = e.target;
+  const st = t.closest('.step');
+  if (st && t.dataset.d) {
+    const [group, code] = st.dataset.k.split('.'), d = +t.dataset.d;
+    if (group === 'seats') S.seats = Math.max(2, Math.min(16, S.seats + d));
+    else { const o = S[group]; o[code] = Math.max(0, Math.min(60, (o[code] || 0) + d)); }
+    touched(); render(); return;
+  }
+  const chip = t.closest('[data-zone]');
+  if (chip) { active = chip.dataset.zone; render(); return; }
+  const cell = t.closest('[data-cell]');
+  if (cell) { paintCell(cell.dataset.cell); return; }
+  if (t.id === 'clear') { S = blank(); active = null; render(); return; }
+  if (t.id === 'loadex') { S = fromExample(); active = null; render(); return; }
+  if (t.dataset.copy) {
+    const ta = $(t.dataset.copy), done = () => { t.textContent = 'Copied'; setTimeout(() => t.textContent = 'Copy', 1400); };
+    const fallback = () => { ta.focus(); ta.select(); t.textContent = 'Selected, press Ctrl+C'; setTimeout(() => t.textContent = 'Copy', 2600); };
+    try { navigator.clipboard.writeText(ta.value).then(done, fallback); } catch (err) { fallback(); }
+  }
+});
+function paintCell(id) {
+  if (!active) return;
+  if (S.paint[id] === active) delete S.paint[id]; else S.paint[id] = active;
+  touched(); render();
+}
+document.addEventListener('keydown', e => {
+  const cell = e.target.closest && e.target.closest('[data-cell]');
+  if (cell && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); paintCell(cell.dataset.cell); }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'floor') { S.floor = t.value; S.unit = floorOf(S).units[0].id; S.paint = {}; }
+  else if (t.id === 'unit') { S.unit = t.value; S.paint = {}; }
+  else if (t.id === 'level') S.level = t.value;
+  else if (t.id === 'kitchen') S.kitchen = t.value;
+  else if (t.dataset.x) S.extras[t.dataset.x] = t.checked;
+  else if (t.dataset.t) S.terr[t.dataset.t] = t.checked;
+  else if (t.dataset.e) S.encl[t.dataset.e][t.dataset.p] = t.value;
+  else return;
+  touched(); render();
+});
+$('ref').addEventListener('input', e => { S.ref = e.target.value; touched(); render(); });
+
+S = load() || fromExample();
+render();
+</script>

@@ -10,7 +10,8 @@ is read from the drawing or from a config file and recomputed on every run.
 | --- | --- |
 | 1. Floor model from DWG | Working for Building A floors 0 to 4 |
 | 2. Offer sheets | Not started |
-| 3. Layout from a brief | Not started |
+| 3a. Brief form (programme, fit-out, rough sketch) | Working for Building A floors 0 to 4 |
+| 3b. Layout engine that reads the brief | Not started |
 | 4. 3D and renders | Not started |
 | 5. Packaging | Not started |
 
@@ -26,11 +27,26 @@ is read from the drawing or from a config file and recomputed on every run.
 
     pip install -r requirements.txt
     python -m planner extract acr_a      # writes buildings/acr_a/out/floor_<n>.json
+    python -m planner form acr_a         # writes buildings/acr_a/out/brief_form.html
     python -m pytest tests
 
 `extract` prints each unit's measured area, the figure it would print on a
 sheet, and how much of the outline lies on drawn walls. It exits non-zero if a
 figure differs from the `expect_m2` recorded in the building config.
+
+## Naming a place
+
+`planner/navigate.py` cuts each unit into bays (counted from the end wall) and
+rows (courtyard side to back side) along the free-standing column lines. The
+brief form and the layout engine share these cells, so "bay 2, courtyard side"
+is one rectangle for both.
+
+## The brief
+
+The form replaces a free-text prompt. It emits `planner.brief/1`: the unit,
+the programme, walls and doors, the rough sketch as cells and a rectangle per
+zone, and a capacity check against `rules/programme.json`. It issues no brief
+for a programme that cannot fit.
 
 ## Adding a floor or a building
 
