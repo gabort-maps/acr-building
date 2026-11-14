@@ -1,0 +1,347 @@
+{
+  "id": "acr_a",
+  "name": "ACR Building · Building A",
+  "address": "Daróczi út 1–3, 1113 Budapest",
+  "profile": "wing_2005",
+  "north_angle_deg": 20.2,
+  "area_rules": {
+    "basis": "Outer face of the facade; wall centre toward the core and voids",
+    "rounding": "ceil"
+  },
+  "outlines": {
+    "_comment": "Unit outlines in the drawing frame, metres. Outer face of the facade; wall centre toward the core and voids. Confirmed once per floor; every run re-checks them against the drawing.",
+    "south_typical": {
+      "source": "offer sheet v1 area diagram (edge lengths in mm), 2026-11",
+      "polygon": [
+        [
+          202.222,
+          0.354
+        ],
+        [
+          218.767,
+          0.354
+        ],
+        [
+          218.767,
+          7.879
+        ],
+        [
+          221.757,
+          7.879
+        ],
+        [
+          221.757,
+          15.439
+        ],
+        [
+          220.777,
+          15.439
+        ],
+        [
+          220.777,
+          21.099
+        ],
+        [
+          202.222,
+          21.099
+        ]
+      ]
+    },
+    "north_typical": {
+      "source": "offer sheet v1 area diagram (edge lengths in mm), 2026-11",
+      "polygon": [
+        [
+          233.712,
+          4.399
+        ],
+        [
+          246.482,
+          4.399
+        ],
+        [
+          246.482,
+          21.099
+        ],
+        [
+          228.247,
+          21.099
+        ],
+        [
+          228.247,
+          17.4
+        ],
+        [
+          228.997,
+          17.4
+        ],
+        [
+          228.997,
+          15.439
+        ],
+        [
+          228.422,
+          15.439
+        ],
+        [
+          228.422,
+          7.754
+        ],
+        [
+          233.712,
+          7.754
+        ]
+      ]
+    },
+    "south_3": {
+      "source": "offer sheet v1 area diagram (edge lengths in mm), 2026-11",
+      "polygon": [
+        [
+          202.512,
+          2.104
+        ],
+        [
+          217.44,
+          2.104
+        ],
+        [
+          217.44,
+          7.764
+        ],
+        [
+          221.757,
+          7.764
+        ],
+        [
+          221.757,
+          15.439
+        ],
+        [
+          220.777,
+          15.439
+        ],
+        [
+          220.777,
+          20.809
+        ],
+        [
+          202.512,
+          20.809
+        ]
+      ]
+    },
+    "north_3": {
+      "source": "offer sheet v1 area diagram (edge lengths in mm), 2026-11",
+      "polygon": [
+        [
+          233.772,
+          6.149
+        ],
+        [
+          246.192,
+          6.149
+        ],
+        [
+          246.192,
+          20.809
+        ],
+        [
+          228.247,
+          20.809
+        ],
+        [
+          228.247,
+          17.4
+        ],
+        [
+          228.997,
+          17.4
+        ],
+        [
+          228.997,
+          15.439
+        ],
+        [
+          228.422,
+          15.439
+        ],
+        [
+          228.422,
+          7.754
+        ],
+        [
+          233.772,
+          7.754
+        ]
+      ]
+    },
+    "south_4": {
+      "source": "offer sheet v1 area diagram (edge lengths in mm), 2026-11",
+      "polygon": [
+        [
+          212.212,
+          7.764
+        ],
+        [
+          224.1,
+          7.764
+        ],
+        [
+          224.1,
+          15.82
+        ],
+        [
+          224.26,
+          15.82
+        ],
+        [
+          224.26,
+          19.384
+        ],
+        [
+          218.512,
+          19.384
+        ],
+        [
+          218.512,
+          17.084
+        ],
+        [
+          212.212,
+          17.084
+        ]
+      ]
+    },
+    "north_4": {
+      "source": "offer sheet v1 area diagram (edge lengths in mm), 2026-11",
+      "polygon": [
+        [
+          228.44,
+          9.216
+        ],
+        [
+          234.092,
+          9.216
+        ],
+        [
+          234.092,
+          19.384
+        ],
+        [
+          228.285,
+          19.384
+        ],
+        [
+          228.285,
+          15.82
+        ],
+        [
+          228.44,
+          15.82
+        ]
+      ]
+    }
+  },
+  "floors": [
+    {
+      "id": "0",
+      "name": "Raised ground floor",
+      "source": "E_02_fsz.DWG",
+      "units": [
+        {
+          "id": "S",
+          "name": "South Wing",
+          "expect_m2": 378,
+          "outline": "south_typical"
+        },
+        {
+          "id": "N",
+          "name": "North Wing",
+          "expect_m2": 284,
+          "outline": "north_typical"
+        }
+      ]
+    },
+    {
+      "id": "1",
+      "name": "1st floor",
+      "source": "E_03_elso.DWG",
+      "units": [
+        {
+          "id": "S",
+          "name": "South Wing",
+          "expect_m2": 378,
+          "outline": "south_typical"
+        },
+        {
+          "id": "N",
+          "name": "North Wing",
+          "expect_m2": 284,
+          "outline": "north_typical"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "name": "2nd floor",
+      "source": "E_04_masodik.DWG",
+      "units": [
+        {
+          "id": "S",
+          "name": "South Wing",
+          "expect_m2": 378,
+          "outline": "south_typical"
+        },
+        {
+          "id": "N",
+          "name": "North Wing",
+          "expect_m2": 284,
+          "outline": "north_typical"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "name": "3rd floor",
+      "source": "E_05_harmadik.DWG",
+      "units": [
+        {
+          "id": "S",
+          "name": "South Wing",
+          "expect_m2": 331,
+          "outline": "south_3"
+        },
+        {
+          "id": "N",
+          "name": "North Wing",
+          "expect_m2": 252,
+          "outline": "north_3"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "name": "4th floor · penthouse",
+      "source": "E_06_NEGYEDIK.DWG",
+      "units": [
+        {
+          "id": "S",
+          "name": "South Part",
+          "expect_m2": 125,
+          "outline": "south_4"
+        },
+        {
+          "id": "N",
+          "name": "North Part",
+          "expect_m2": 59,
+          "outline": "north_4"
+        }
+      ]
+    }
+  ],
+  "not_supported": [
+    {
+      "source": "E_01_pince.DWG",
+      "reason": "Basement drawing is not in metres; scale not established. The tool refuses it rather than guess."
+    }
+  ]
+}

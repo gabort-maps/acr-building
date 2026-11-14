@@ -1,0 +1,23 @@
+{
+  "name": "wing_2005",
+  "description": "WING 2005 'kiviteli terv' drawing convention (AutoCAD R14, metres).",
+  "layer_prefix_regex": "^D\\d_",
+  "units_per_metre": 1.0,
+  "layers": {
+    "wall": ["_FALAK"],
+    "window": ["_FALAK_ABLAKAI"],
+    "door": ["_FALAK_AJTOI"],
+    "column_hatch": ["STANDARD"],
+    "core_lines": ["VONALAK", "FILLEK"],
+    "finish_roof": ["_BURK_TETO"],
+    "finish_floor": ["_BURKOLAT"],
+    "slab_edge": ["KERULET"],
+    "levels": ["SZINTMERETEZES"],
+    "rooms": ["HELYISEGEK"],
+    "notes": ["FELIRATOK"],
+    "ignore": ["_ONKORI", "_ONKORI_AJTOI", "BERENDEZES", "MERETEZES"]
+  },
+  "column_area_m2": [0.08, 0.6],
+  "min_wall_hatch_m2": 0.05,
+  "construction_line_min_length_m": 6.0
+}
