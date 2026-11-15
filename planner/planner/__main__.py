@@ -1,13 +1,51 @@
 """Command line:
     python -m planner extract <building_id>   floor models and area check
     python -m planner form <building_id>      brief form (HTML)
+    python -m planner layout <brief.json>     checked layout (JSON, SVG, PNG); add --debug to draw a refused one
 """
 import sys
 
-from . import form, model
+import json
+import re
+from pathlib import Path
+
+from . import checks, draw, form, layout, model
+
+
+def run_layout(brief_path: Path, debug: bool) -> int:
+    brief = json.loads(brief_path.read_text())
+    out_dir = model.ROOT / "buildings" / brief["building"] / "out"
+    fm = json.loads((out_dir / f"floor_{brief['floor']}.json").read_text())
+    name = re.sub(r"[^a-z0-9]+", "_", (brief.get("reference") or brief_path.stem).lower()).strip("_")
+    print(f"{brief.get('reference') or brief_path.name}: floor {brief['floor']}, unit {brief['unit']}")
+    try:
+        ctx = layout.run(brief, fm)
+    except layout.CannotPlace as e:
+        print(f"  REFUSED  {e}")
+        return 1
+    report = checks.validate(brief, ctx)
+    for c in report["checks"]:
+        print(f"  {'pass' if c['ok'] else 'FAIL'}  {c['check']}")
+        for p in c["problems"]:
+            print(f"          - {p}")
+    for n in ctx.notes:
+        print(f"  note  {n}")
+    target = out_dir / "layouts"
+    target.mkdir(exist_ok=True)
+    (target / f"{name}.json").write_text(json.dumps(layout.to_json(brief, ctx, report), indent=1))
+    if report["ok"] or debug:
+        unit = next(u for u in fm["units"] if u["id"] == brief["unit"])
+        svg = target / f"{name}.svg"
+        svg.write_text(draw.svg(fm, ctx, f"{fm['name']} · {unit['name']} · {brief.get('reference') or ''}", report))
+        draw.to_png(svg, target / f"{name}.png")
+        print(f"  drawing: {target / (name + '.png')}")
+    print("  LAYOUT OK" if report["ok"] else "  LAYOUT REFUSED: no sheet is issued")
+    return 0 if report["ok"] else 1
 
 
 def main(argv):
+    if len(argv) >= 3 and argv[1] == "layout":
+        return run_layout(Path(argv[2]), "--debug" in argv)
     if len(argv) != 3 or argv[1] not in ("extract", "form"):
         print(__doc__)
         return 2

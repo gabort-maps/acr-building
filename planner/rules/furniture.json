@@ -1,0 +1,19 @@
+{
+  "_comment": "Dimensions in metres. One source for the 2D symbol and, later, the 3D model of each piece.",
+  "clearance": {"chair_zone": 1.0, "walkway": 0.9, "seat_access": 0.5, "partition": 0.1},
+  "desk": {"WS1": [1.4, 0.8], "WS2": [1.6, 0.8], "WS3": [1.8, 0.8]},
+  "task_chair": 0.56,
+  "side_chair": 0.46,
+  "armchair": [0.64, 0.70],
+  "door": {"HD": 0.95, "SD": 1.0, "GD": 0.95},
+  "rooms": {
+    "OF1": {"pref": [3.0, 4.0], "min": [2.8, 3.6]},
+    "OF2": {"pref": [5.2, 5.2], "min": [3.9, 4.6]},
+    "M4": {"pref": [3.0, 3.6], "min": [2.8, 3.2], "table": [1.2, 0.9], "side": 2, "heads": 0},
+    "M6": {"pref": [3.2, 4.4], "min": [3.0, 4.0], "table": [1.8, 0.9], "side": 3, "heads": 0},
+    "M10": {"pref": [4.0, 6.2], "min": [3.6, 5.6], "table": [3.0, 1.1], "side": 4, "heads": 2},
+    "K": {"depth_pref": 3.3, "depth_min": 3.0, "counter": 0.6, "tall_run": 1.2, "seat_pitch": 0.65, "table_depth": 0.9},
+    "ST": {"pref": [2.4, 2.5], "min": [1.8, 2.0]},
+    "SR": {"pref": [2.4, 2.5], "min": [1.8, 2.0]}
+  }
+}

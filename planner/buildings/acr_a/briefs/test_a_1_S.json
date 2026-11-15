@@ -1,0 +1,83 @@
+{
+ "schema": "planner.brief/1",
+ "reference": "Test A \u00b7 floor 1 south, tool decides",
+ "building": "acr_a",
+ "floor": "1",
+ "unit": "S",
+ "floor_drawing_sha256": "4487e87e249bc4e6c22e2455d2e3ea6aea29e5e073bb4c32dd9315e5f381de6b",
+ "fit_out_level": "L1",
+ "workstations": {
+  "WS1": 24
+ },
+ "rooms": {
+  "M6": 2,
+  "M10": 1,
+  "PB": 2
+ },
+ "kitchen": {
+  "type": "K1",
+  "seats": 0
+ },
+ "extras": [
+  "RC"
+ ],
+ "enclosures": {
+  "office": {
+   "wall": "PW",
+   "door": "HD"
+  },
+  "meeting": {
+   "wall": "GW",
+   "door": "GD"
+  },
+  "kitchen": {
+   "wall": "GW",
+   "door": "SD"
+  }
+ },
+ "terrace": {},
+ "zones": [
+  {
+   "key": "WS",
+   "label": "Workstations",
+   "rect": null,
+   "placement": "tool decides"
+  },
+  {
+   "key": "M6-1",
+   "label": "Meeting room 6 \u00b7 1",
+   "rect": null,
+   "placement": "tool decides"
+  },
+  {
+   "key": "M6-2",
+   "label": "Meeting room 6 \u00b7 2",
+   "rect": null,
+   "placement": "tool decides"
+  },
+  {
+   "key": "M10-1",
+   "label": "Meeting room 10",
+   "rect": null,
+   "placement": "tool decides"
+  },
+  {
+   "key": "PB",
+   "label": "Phone booths",
+   "rect": null,
+   "placement": "tool decides"
+  },
+  {
+   "key": "K",
+   "label": "Kitchenette",
+   "rect": null,
+   "placement": "tool decides"
+  },
+  {
+   "key": "RC",
+   "label": "Reception",
+   "rect": null,
+   "placement": "tool decides"
+  }
+ ]
+}

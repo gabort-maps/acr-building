@@ -1,0 +1,41 @@
+{
+ "schema": "planner.brief/1",
+ "reference": "Test B \u00b7 floor 1 north, too much",
+ "building": "acr_a",
+ "floor": "1",
+ "unit": "N",
+ "floor_drawing_sha256": "4487e87e249bc4e6c22e2455d2e3ea6aea29e5e073bb4c32dd9315e5f381de6b",
+ "fit_out_level": "L2",
+ "workstations": {
+  "WS2": 60
+ },
+ "rooms": {},
+ "kitchen": {
+  "type": "K0",
+  "seats": 0
+ },
+ "extras": [],
+ "enclosures": {
+  "office": {
+   "wall": "PW",
+   "door": "HD"
+  },
+  "meeting": {
+   "wall": "GW",
+   "door": "GD"
+  },
+  "kitchen": {
+   "wall": "GW",
+   "door": "SD"
+  }
+ },
+ "terrace": {},
+ "zones": [
+  {
+   "key": "WS",
+   "label": "Workstations",
+   "rect": null,
+   "placement": "tool decides"
+  }
+ ]
+}
