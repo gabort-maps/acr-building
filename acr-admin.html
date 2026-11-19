@@ -215,6 +215,11 @@ select, input[type=text], input[type=search] { background:var(--panel); border:1
 .iss.jump { cursor:pointer; text-decoration:underline dotted; } .flash { animation:flash 1.6s ease-out; } @keyframes flash { 0% { box-shadow:0 0 0 3px var(--hi); } 100% { box-shadow:0 0 0 0 transparent; } }
 .ucard .un { font-size:14px; } .ptab.ro td { padding:4px 6px; } .miss { color:var(--badfg); font-weight:600; } .tag.old { background:var(--soft); color:var(--mute); } label.ck { display:inline-flex; gap:5px; align-items:center; font-size:12.5px; } label.ck input { width:auto; }
 .ixv { flex-wrap:wrap; } .ixv label { display:inline-flex; gap:3px; align-items:center; font-size:12px; } tr.jumprow { cursor:pointer; } tr.jumprow:hover td { background:var(--soft); } tr.jumprow.soon td:first-child { color:var(--warn); font-weight:600; } tr.jumprow.past td { opacity:.65; }
+.ccard { border:1px solid var(--line); border-radius:8px; padding:8px 10px; display:grid; gap:8px; background:var(--panel); margin-bottom:8px; } .chead { display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:14px; }
+.cpart { display:flex; flex-wrap:wrap; gap:6px; align-items:center; } .cpart .cl { font-size:10.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--mute); min-width:95px; } .chip2.lnk { cursor:pointer; border:1px solid var(--line); background:var(--soft); border-radius:12px; padding:2px 9px; font:inherit; font-size:12.5px; }
+ol.mods { margin:0; padding-left:18px; display:grid; gap:4px; flex-basis:100%; font-size:13px; } .mtag { font-size:11.5px; padding:1px 7px; border-radius:10px; } .mtag.ok { background:#dcfce7; color:#166534; } .mtag.warn { background:var(--warnbg); color:#92400e; } button.sm { padding:2px 8px; font-size:12px; }
+.modw { border:2px solid var(--acc); border-radius:8px; padding:10px; display:grid; gap:8px; background:var(--soft); } .modw.ok { border-color:var(--ok); } .lbtns.wrap { flex-wrap:wrap; } .unl { background:var(--warnbg); border-radius:6px; padding:6px 10px; display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; font-size:13px; } .ul1 { display:inline-flex; gap:5px; align-items:center; }
+.modbar { position:sticky; bottom:8px; z-index:20; background:var(--acc); color:var(--accfg); border-radius:8px; padding:8px 12px; display:flex; gap:10px; align-items:center; box-shadow:0 2px 10px rgba(0,0,0,.2); }
 .vbar { border:1px solid var(--line); border-radius:8px; padding:8px 10px; display:grid; gap:8px; background:var(--panel); } .vchips { display:flex; flex-wrap:wrap; gap:6px; }
 .vchip { border:1px solid var(--inbd); background:var(--btn1); color:var(--fg); border-radius:8px; padding:5px 10px; cursor:pointer; font:inherit; font-size:13px; display:inline-flex; gap:6px; align-items:center; } .vchip.on { border:2px solid var(--acc); background:var(--btn2); } .vchip i { font-style:normal; font-size:11.5px; color:var(--mute); } .vchip i.now { color:var(--ok); font-weight:600; }
 .vwarn { background:var(--warnbg); color:#78350f; border:1px solid #f1c76a; border-radius:6px; padding:6px 10px; font-size:13px; } .vmeta { padding:2px 0; }
@@ -794,7 +799,11 @@ function issuesOf(t) {
   { const ACT = ['Szerződött', 'Bérlet', 'Kilépő'], objs = (x) => partsOf(x).map((pt) => pt.obj).filter(Boolean);
     for (const l of ls.filter((x) => x.use !== 'Parkoló' && ACT.includes(x.status))) for (const ob of objs(l)) { const o = Object.values(LEA).find((x) => x.id !== l.id && x.use !== 'Parkoló' && ACT.includes(x.status) && objs(x).includes(ob)); if (o) { add('warn', `${leaseLbl(l)}: ugyanez a terület (${ob}) más bérleten is aktív: ${tName(o.t)} (${o.id})`); break; } } }
   { const cs2 = conOfT(t.id), nolink = ls.filter((l) => !l.c).length; if (ls.length && !cs2.length) add('info', 'Nincs szerződés felvéve'); else if (nolink) add('info', `${nolink} bérlemény nincs szerződéshez kötve`);
-    for (const c of cs2) { if (c.idx) add('info', `${c.id}: régi, szerződésszintű indexálási adat (${c.idx}${c.idxm ? ', ' + c.idxm + '-' + c.idxd : ''}). Köss hozzá bérletet, és átkerül a bérlet részeire.`); if (!c.type) add('info', `${c.id}: a szerződés típusa nincs megadva`); if (c.type === 'Szóbeli megállapodás' && c.form === 'Írásbeli') add('warn', `${c.id}: szóbeli megállapodás, de a forma írásbeli`); if (c.billing === 'Nincs számla / készpénz' && pr.pay === 'átutalás') add('warn', `${c.id}: a szerződésnél nincs számla / készpénz, a profilban a fizetés módja átutalás`); if (c.base && CTR[c.base] && isIso(c.signed) && isIso(CTR[c.base].signed) && c.signed < CTR[c.base].signed) add('warn', `${c.id}: a módosítás korábbi, mint az eredeti szerződés`); if (c.type === 'Módosítás' && !c.base) add('warn', `${c.id}: módosítás, de nincs megadva, melyik szerződést módosítja`); if (c.signed && !dateOk(c.signed)) add('warn', `${c.id}: az aláírás dátuma legyen ÉÉÉÉ-HH-NN`); } }
+    for (const c of cs2) { if (c.idx) add('info', `${c.id}: régi, szerződésszintű indexálási adat (${c.idx}${c.idxm ? ', ' + c.idxm + '-' + c.idxd : ''}). Köss hozzá bérleményt, és átkerül.`);
+      if (c.billing === 'Nincs számla / készpénz' && ctrLeases(c).some((l) => l.method === 'átutalás')) add('warn', `${c.id}: a szerződésnél nincs számla / készpénz, de egy hozzá kötött bérleménynél a fizetés módja átutalás`);
+      if (c.signed && !isIso(c.signed)) add('warn', `${c.id}: az aláírás dátuma legyen ÉÉÉÉ-HH-NN`);
+      if (ls.length && !ctrLeases(c).length) add('info', `${c.id}: nincs hozzá bérlemény kötve`);
+      for (const m of c.mods || []) { const p = modPending(m); if (p.length) add('warn', `${c.id}: a ${m.from}-i módosítás még nincs végigvezetve (${p.length} bérlemény)`); if (isIso(m.signed) && isIso(c.signed) && m.signed < c.signed) add('warn', `${c.id}: a módosítás korábbi, mint a szerződés`); } } }
   I.push(...utilIssues(t));
   if (!(t.chk && t.chk.base)) add('info', 'Az alapadatok nincsenek ellenőrizve');
   if (t.own) return I.filter((i) => !/profil|[Ff]izetés|fizet-e|elszámolás|átalány|nincs ár|pénznem|szerződés|Nincs bérlet|adószám|email|kapcsolattartó/i.test(i.msg));
@@ -820,21 +829,55 @@ function issuesHtml(t) {
   return (core.length ? '' : '<span class="iss good">✓ Nincs hiányzó vagy hibás adat</span>') + is.map((i) => { const s = sec(i.msg); return s ? `<span class="iss ${i.lv} jump" data-jumpsec="${s}" title="Ugrás">${esc(i.msg)}</span>` : issChip(i); }).join('');
 }
 function fld(label, input, cls, hint) { return `<label class="fld ${cls || ''}"><span>${label}</span>${input}${hint ? `<small>${hint}</small>` : ''}</label>`; }
-function ctrHtml(t, cts) {
-  const ls = leaOf(t.id), unl = ls.filter((l) => !l.c);
-  const rows = cts.map((c) => `<tr data-ctid="${esc(c.id)}"><td class="mono">${esc(c.id)}</td>
-    <td><select data-ctf="type" aria-label="Típus">${opts(LISTS.ctype, c.type)}</select></td>
-    <td><select data-ctf="form" aria-label="Forma">${opts(LISTS.cform, c.form)}</select></td>
-    <td>${c.type === 'Módosítás' ? `<select data-ctf="base" aria-label="Melyik szerződést módosítja" class="${!c.base ? 'badin' : ''}"><option value="">válassz…</option>${cts.filter((x) => x.id !== c.id).map((x) => `<option value="${esc(x.id)}"${c.base === x.id ? ' selected' : ''}>${esc(x.id)} ${esc(x.signed || '')}</option>`).join('')}</select>` : '<span class="hint">csak módosításnál</span>'}</td>
-    <td><input type="text" data-ctf="signed" value="${esc(c.signed || '')}" placeholder="ÉÉÉÉ-HH-NN" aria-label="Aláírva" class="${c.signed && !dateOk(c.signed) ? 'badin' : ''}"></td>
-    <td><select data-ctf="billing" aria-label="Számlázás módja">${opts(LISTS.cbill, c.billing)}</select></td>
-    <td><input type="text" data-ctf="doc" value="${esc(c.doc || '')}" placeholder="dokumentum linkje" aria-label="Dokumentum"></td>
-    <td><input type="text" data-ctf="note" value="${esc(c.note || '')}" placeholder="megjegyzés" aria-label="Megjegyzés"></td>
-    <td><button class="gb danger" data-delctr="${esc(c.id)}">Törlés</button></td></tr>`).join('');
-  return `${cts.length ? `<div class="tw2"><table class="ptab"><thead><tr><th>ID</th><th>Típus</th><th>Forma</th><th>Melyik szerződést módosítja</th><th>Aláírva</th><th>Számlázás módja</th><th>Dokumentum</th><th>Megjegyzés</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="hint">Még nincs szerződés. Egy sor egy aláírt dokumentum vagy egy szóbeli megállapodás.</div>'}
-    ${cts.length === 1 && unl.length ? `<div class="hint">${unl.length} bérlemény nincs szerződéshez kötve. <button class="gb" data-linkall="${esc(cts[0].id)}">Mind a ${esc(cts[0].id)} szerződéshez</button></div>` : ''}
-    <div><button class="gb" data-addctr="${esc(t.id)}">＋ Szerződés</button></div>`;
+// ---------- Szerződések: a papír kártyája, alatta a bérlemények és a módosítások ----------
+let MODW = null;   // módosítás varázsló: { cid, mid } (mid nélkül: az új módosítás űrlapja)
+const ctrLeases = (c) => Object.values(LEA).filter((l) => l.c === c.id && !l.orphan).sort((a, b) => a.id.localeCompare(b.id));
+const modPending = (m) => (m.leases || []).filter((lid) => !(m.done || {})[lid]).concat(m.newl && !(m.done || {}).__new ? ['__new'] : []);
+const ctrName = (c) => (c.oral || c.type === 'Szóbeli megállapodás' ? 'Szóbeli megállapodás' : 'Bérleti szerződés');
+function verAt(r, d) { let k = -1; for (const { v, i } of vList(r)) if (v.from && v.from <= d) k = i; return k; }
+function modWizHtml(c) {
+  const ls = ctrLeases(c);
+  if (!MODW.mid) return `<div class="modw"><b>Új módosítás ehhez a szerződéshez</b>
+    <div class="fgrid">
+      ${fld('Aláírva', dIn('data-mw="signed"', '', 'Aláírva'))}
+      ${fld('Érvényes ettől', dIn('data-mw="from"', '', 'Érvényes ettől'), '', 'Ettől a naptól érvényesek az új feltételek')}
+      ${fld('Mi változik? (röviden)', '<input type="text" data-mw="note" placeholder="például: új ár; +60 m² a D épületben">', 'w2')}
+      ${fld('Dokumentum', '<input type="text" data-mw="doc" placeholder="a módosítás linkje (nem kötelező)">', 'w2')}
+    </div>
+    <div><b>Mely bérleményeket érinti?</b><div class="chips">${ls.map((l) => `<label><input type="checkbox" data-mwl="${esc(l.id)}">${esc(l.id)} · ${esc(cutTxt(leaseName(l) || l.use || 'új, még kitöltetlen'))}</label>`).join('') || '<span class="hint">Ehhez a szerződéshez még nincs bérlemény kötve.</span>'}<label><input type="checkbox" data-mwl="__new">＋ új bérlemény is lesz</label></div></div>
+    <div class="lbtns"><button class="pb" data-modnext="${esc(c.id)}">Tovább</button><button class="gb" data-modcancel="1">Mégse</button></div></div>`;
+  const m = (c.mods || []).find((x) => x.id === MODW.mid); if (!m) return '';
+  const all = (m.leases || []).concat(m.newl ? ['__new'] : []), pend = modPending(m), cur = pend[0], n = all.length - pend.length + 1;
+  if (!cur) return `<div class="modw ok"><b>✓ A módosítás minden érintett bérleményen rögzítve.</b> <span class="hint">Az új adatokat lent, a bérlemények szerkesztésében ellenőrizheted.</span><div class="lbtns"><button class="pb" data-modcancel="1">Bezár</button></div></div>`;
+  if (cur === '__new') return `<div class="modw"><b>${n}/${all.length} · Új bérlemény</b> <span class="hint">Létrejön ehhez a szerződéshez, ${esc(m.from)}-i kezdéssel, és megnyílik kitöltésre.</span>
+    <div class="lbtns"><button class="pb" data-moddo="new">Új bérlemény létrehozása</button><button class="gb" data-moddo="skip" data-mlid="__new">Mégsem kell</button><button class="gb" data-modcancel="1">Később folytatom</button></div></div>`;
+  const l = LEA[cur] || { id: cur };
+  return `<div class="modw"><b>${n}/${all.length} · ${esc(cur)} ${esc(cutTxt(leaseName(l) || l.use || 'új, még kitöltetlen'))}: mi változik ${esc(m.from)}-tól?</b>
+    <div class="lbtns wrap"><button class="pb" data-moddo="price" data-mlid="${esc(cur)}">Csak az ár</button><button class="pb" data-moddo="version" data-mlid="${esc(cur)}">Terület, helyiségek vagy időtartam</button><button class="gb" data-moddo="other" data-mlid="${esc(cur)}">Egyéb (csak rögzítem)</button><button class="gb" data-moddo="skip" data-mlid="${esc(cur)}">Mégsem érinti</button><button class="gb" data-modcancel="1">Később folytatom</button></div>
+    <div class="hint">Csak az ár: új ár sor nyílik ${esc(m.from)}-tól, ott átírod az összeget. Terület, helyiségek, időtartam: új változat nyílik a bérleményből, ott átírod, ami változott.</div></div>`;
 }
+function ctrHtml(t, cts) {
+  const ls = leaOf(t.id), unl = ls.filter((l) => !l.c && !l.orphan);
+  const card = (c) => { const L = ctrLeases(c), mods = (c.mods || []).slice().sort((a, b) => (a.from || '').localeCompare(b.from || '')), oral = !!(c.oral || c.type === 'Szóbeli megállapodás');
+    return `<div class="ccard" data-ctid="${esc(c.id)}">
+      <div class="chead"><b class="mono">${esc(c.id)}</b> <b>${ctrName(c)}</b>${c.signed ? ` · aláírva ${esc(c.signed)}` : ''}${c.doc ? ` · <a href="${esc(c.doc)}" target="_blank" rel="noopener">📄 dokumentum</a>` : ''}<span style="flex:1"></span><button class="gb danger" data-delctr="${esc(c.id)}">Törlés</button></div>
+      <div class="fgrid">
+        ${fld('Aláírva', dIn('data-ctf="signed"', c.signed, 'Aláírva'))}
+        ${fld('Szóbeli', `<label class="ck"><input type="checkbox" data-ctf="oral"${oral ? ' checked' : ''}>szóbeli megállapodás</label>`)}
+        ${fld('Számlázás módja', `<select data-ctf="billing" aria-label="Számlázás módja">${opts(LISTS.cbill, c.billing)}</select>`)}
+        ${fld('Dokumentum', `<input type="text" data-ctf="doc" value="${esc(c.doc || '')}" placeholder="a szerződés linkje">`)}
+        ${fld('Megjegyzés', `<input type="text" data-ctf="note" value="${esc(c.note || '')}" placeholder="például: a mappában">`, 'w2')}
+      </div>
+      <div class="cpart"><span class="cl">Bérlemények</span>${L.map((l) => `<button class="chip2 lnk" data-golease="${esc(l.id)}">${esc(l.id)} · ${esc(cutTxt(leaseName(l) || l.use || 'új, még kitöltetlen'))}</button>`).join('') || '<span class="hint">még nincs</span>'}<button class="gb" data-ctnewlease="${esc(c.id)}">＋ Bérlemény ehhez a szerződéshez</button></div>
+      <div class="cpart"><span class="cl">Módosítások</span>${mods.length ? `<ol class="mods">${mods.map((m) => { const p = modPending(m); return `<li><b>aláírva ${esc(m.signed || '?')}</b> · érvényes <b>${esc(m.from)}</b>-tól${m.note ? ' · ' + esc(m.note) : ''}${m.doc ? ` · <a href="${esc(m.doc)}" target="_blank" rel="noopener">📄</a>` : ''} · ${(m.leases || []).map((lid) => `<span class="mtag ${(m.done || {})[lid] ? 'ok' : 'warn'}">${esc(lid)}${{ price: ': új ár', version: ': új változat', other: ': rögzítve', skip: ': nem érinti' }[(m.done || {})[lid]] || ': teendő'}</span>`).join(' ')}${m.newl ? ` <span class="mtag ${(m.done || {}).__new ? 'ok' : 'warn'}">új bérlemény${(m.done || {}).__new && (m.done || {}).__new !== 'skip' ? ': ' + esc(m.done.__new) : ''}</span>` : ''} ${p.length ? `<button class="pb sm" data-modcont="${esc(c.id)}|${esc(m.id)}">Folytatás</button>` : ''} <button class="gb danger sm" data-moddel="${esc(c.id)}|${esc(m.id)}" title="Csak a módosítás bejegyzését törli; a bérleményeken már rögzített változások maradnak">×</button></li>`; }).join('')}</ol>` : '<span class="hint">nincs</span>'}<button class="gb" data-modnew="${esc(c.id)}">＋ Módosítás ehhez a szerződéshez</button></div>
+      ${MODW && MODW.cid === c.id ? modWizHtml(c) : ''}
+    </div>`; };
+  return `<div class="hint">Sorrend: először a <b>szerződés</b> (a papír), utána a hozzá tartozó <b>bérlemények</b>. Ha a szerződést módosítják: <b>＋ Módosítás ehhez a szerződéshez</b>, és a program végigvezet az érintett bérleményeken. Ha csak elírás volt, javítsd közvetlenül a bérleménynél (✎ Szerkesztés).</div>
+    ${unl.length ? `<div class="unl"><b>${unl.length} bérlemény nincs szerződéshez kötve:</b> ${unl.map((l) => `<span class="ul1">${esc(l.id)} ${esc(cutTxt(leaseName(l) || l.use || 'új, még kitöltetlen'))} <select data-ctlink="${esc(l.id)}" aria-label="Szerződés"><option value="">kösd ehhez…</option>${cts.map((c) => `<option value="${esc(c.id)}">${esc(c.id)} ${esc(c.signed || '')}</option>`).join('')}</select></span>`).join('')}${cts.length === 1 ? ` <button class="gb" data-linkall="${esc(cts[0].id)}">Mind a ${esc(cts[0].id)} szerződéshez</button>` : ''}</div>` : ''}
+    ${cts.map(card).join('') || '<div class="hint">Még nincs szerződés.</div>'}
+    <div><button class="gb" data-addctr="${esc(t.id)}">＋ Új szerződés</button></div>`;
+}
+
 function cmpLine(l, pt, multi) {
   const A = partArea(l, pt), qty = +pt.qty || (!multi ? +l.qty : 0);
   if (!(pt.rooms || []).length) return '<span class="cmp">Még nincs helyiség hozzárendelve.</span>';
@@ -909,7 +952,7 @@ function leaseViewHtml(l, own) {
   const rooms = [...new Set(pts.flatMap((pt) => pt.rooms || []))].map((id) => { const x = RM[id]; return x ? esc(x.code || x.name) : esc(id); });
   const area = pts.map((pt) => { const a = areaSplit(cur, pt); return cur.unit === 'm²' && a.net > 0 ? (a.com > 0 ? `nettó ${nfm(a.net)} + közös ${nfm(a.com)} = bruttó ${nfm(a.gross)} m²` : `${nfm(a.gross)} m²`) : ''; }).filter(Boolean).join(' · ');
   const vs = (r.vers || []).length, rows = [
-    ['Szerződés', cur.c ? esc(cur.c) + (CTR[cur.c] && CTR[cur.c].signed ? ' · aláírva ' + esc(CTR[cur.c].signed) : '') : '<span class="hint">nincs kötve</span>'],
+    ['Szerződés', cur.c ? esc(cur.c) + (CTR[cur.c] && CTR[cur.c].signed ? ' · aláírva ' + esc(CTR[cur.c].signed) : '') + (CTR[cur.c] && (CTR[cur.c].mods || []).some((m) => (m.leases || []).includes(l.id)) ? ' · ' + CTR[cur.c].mods.filter((m) => (m.leases || []).includes(l.id)).length + ' módosítás érinti' : '') : '<span class="hint">nincs kötve</span>'],
     ['Használat, állapot', `${esc(cur.use || '–')} · ${esc(cur.status || '–')}`],
     ['Időtartam', `${esc(cur.start || '?')} → ${esc(cur.end || '?')}${cur.notice ? ' · felmondás: ' + esc(cur.notice) : ''}`],
     ['Terület', area || (+cur.qty ? nfm(+cur.qty) + ' ' + esc(cur.unit || '') : '<span class="hint">nincs megadva</span>')],
@@ -1038,7 +1081,7 @@ function utilHtml(t, pr, vf) {
 function profRows(t) {
   const R = [], miss = '<span class="miss">hiányzik</span>';
   for (const l of leaOf(t.id)) { if (l.status === 'Lejárt' || l.orphan) continue; const p = curP(partsOf(l)[0] || {});
-    R.push(`<tr><td><b class="mono">${esc(l.id)}</b> ${esc(cutTxt(leaseName(l) || l.use || ''))}</td><td>${l.method ? esc(l.method) : miss}</td><td>${l.pay ? esc(l.pay) : miss}</td><td>${l.due != null && l.due !== '' ? esc(l.due) + '. nap' : l.method === 'készpénz' ? '–' : miss}</td><td>${esc(billTxt(p)) || '–'}</td></tr>`); }
+    R.push(`<tr><td><b class="mono">${esc(l.id)}</b> ${esc(cutTxt(leaseName(l) || l.use || 'új, még kitöltetlen'))}</td><td>${l.method ? esc(l.method) : miss}</td><td>${l.pay ? esc(l.pay) : miss}</td><td>${l.due != null && l.due !== '' ? esc(l.due) + '. nap' : l.method === 'készpénz' ? '–' : miss}</td><td>${esc(billTxt(p)) || '–'}</td></tr>`); }
   for (const [k, lab] of UTILS) { const x = (t.util || {})[k]; if (!x || x.pay !== 'igen') continue;
     R.push(`<tr><td>${lab}</td><td>${x.method ? esc(x.method) : miss}</td><td>${x.paycur ? esc(x.paycur) : miss}</td><td>${x.due != null && x.due !== '' ? esc(x.due) + '. nap' : '–'}</td><td>${x.bill && x.bill !== '1' ? esc(x.bill) + ' havonta' : 'havonta'}</td></tr>`); }
   return R.join('');
@@ -1090,7 +1133,8 @@ function tcardHtml(t) {
       <div><button class="gb" data-addcon="${esc(t.id)}">＋ Kapcsolattartó</button></div></div></details>
     ${t.own ? '<div class="hint" style="padding:2px 4px">Saját használat: számlázási profil, szerződés és díj nincs. A területeket alább vagy az alaprajzon jelölheted.</div>' : ownOff(t, pr, cts, vf, sel, pin)}
     <details class="sec" data-secid="lea" open><summary>${t.own ? 'Saját használatú területek' : 'Bérlemények'} (${ls.length})</summary><div class="secb">${ls.map((l) => leaseHtml(LV(l.id), cts)).join('') || '<div class="hint">Még nincs bérlemény.</div>'}
-      <div><button class="gb" data-addlease="${esc(t.id)}">${t.own ? '＋ Terület' : '＋ Bérlemény'}</button></div></div></details>`;
+      <div><button class="gb" data-addlease="${esc(t.id)}">${t.own ? '＋ Terület' : '＋ Bérlemény'}</button></div></div></details>
+    ${(() => { if (!MODW || !MODW.mid || !CTR[MODW.cid] || CTR[MODW.cid].t !== t.id) return ''; const m = (CTR[MODW.cid].mods || []).find((x) => x.id === MODW.mid); if (!m) return ''; const p = modPending(m); return `<div class="modbar">${p.length ? `Módosítás folyamatban (${esc(MODW.cid)}, ${esc(m.from)}): még ${p.length} bérlemény van hátra.` : `✓ A módosítás (${esc(MODW.cid)}) minden bérleményen rögzítve.`} <button class="pb sm" data-modgo="1">${p.length ? 'Tovább a következőre' : 'Vissza a szerződéshez'}</button></div>`; })()}`;
 }
 function initGuide() { const g = $('tguide'); if (!g || g.dataset.init) return; g.dataset.init = '1'; let seen = false; try { seen = localStorage.getItem('acrAdm.guide') === '1'; } catch (e) { } g.open = !seen; g.addEventListener('toggle', () => { try { localStorage.setItem('acrAdm.guide', '1'); } catch (e) { } }); }
 const dKey = (d) => (d.closest('[data-lid]') ? d.closest('[data-lid]').dataset.lid : '') + '|' + (d.dataset.parti != null ? 'p' + d.dataset.parti : d.closest('[data-parti]') ? 'p' + d.closest('[data-parti]').dataset.parti : '') + '|' + (d.classList.contains('adv') ? 'adv' : d.classList.contains('sec') ? 's' + [...d.parentElement.children].indexOf(d) : '');
@@ -1213,6 +1257,8 @@ function migrateV2() {
     toast(`Az adatok átalakítása kész. Előtte automatikus mentés készült.${nSplit ? ' ' + nSplit + ' bérlemény szétbontva.' : ''}${nDrop ? ' ' + nDrop + ' üres rész törölve.' : ''}`); renderAll();
   }).catch((e) => { MIG2 = false; dbErr(e); });
 }
+function goLease(lid, step) { setTimeout(() => { const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (!d) return; d.open = true; const s = step ? d.querySelector(`[data-step="${step}"]`) : d.querySelector('.vbar'); const tg = s || d; tg.scrollIntoView({ behavior: 'smooth', block: 'start' }); tg.classList.add('flash'); setTimeout(() => tg.classList.remove('flash'), 1600); }, 40); }
+function goWiz() { setTimeout(() => { const w = document.querySelector('#tcard .modw'); if (w) { w.scrollIntoView({ behavior: 'smooth', block: 'center' }); w.classList.add('flash'); setTimeout(() => w.classList.remove('flash'), 1600); } }, 40); }
 function saveCtr(c) { CTR[c.id] = c; if (DB) DB.doc('contracts/' + c.id).set(c).catch(dbErr); }
 function reopen(lid) { renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; }
 function refreshLease(id) {   // csak az összegző sorok, a számolt sorok és a teendők frissülnek (a fókusz megmarad)
@@ -1269,7 +1315,11 @@ function tcardChange(el) {
     else if (/Mode$/.test(f)) { if (el.value) x[f] = 'fix'; else delete x[f]; if (f === 'rentMode' && !el.value) { delete x.gross; delete x.freq; } saveLease(l); reopen(l.id); return; }
     else { const v = el.value.trim(); if (v) x[f] = v; else delete x[f]; }
     saveLease(l); refreshLease(l.id); return; }
-  else if (el.dataset.ctf) { const c = Object.assign({}, CTR[el.closest('tr').dataset.ctid]), v = el.value.trim(); if (v) c[el.dataset.ctf] = v; else delete c[el.dataset.ctf]; if (el.dataset.ctf === 'idx' && v !== 'igen') { delete c.idxm; delete c.idxd; delete c.idxn; saveCtr(c); renderTenants(); return; } if (el.dataset.ctf === 'idx') { saveCtr(c); renderTenants(); return; } if (el.dataset.ctf === 'type' && c.type !== 'Módosítás') delete c.base; if (el.dataset.ctf === 'type' && c.type === 'Szóbeli megállapodás') c.form = 'Szóbeli'; saveCtr(c); if (el.dataset.ctf === 'type') { renderTenants(); return; } }
+  else if (el.dataset.ctf) { const c = Object.assign({}, CTR[el.closest('[data-ctid]').dataset.ctid]), f = el.dataset.ctf;
+    if (f === 'oral') { if (el.checked) { c.oral = true; c.form = 'Szóbeli'; c.type = 'Szóbeli megállapodás'; } else { delete c.oral; if (c.form === 'Szóbeli') c.form = 'Írásbeli'; c.type = 'Szerződés'; } saveCtr(c); renderTenants(); return; }
+    const v = el.value.trim(); if (f === 'signed' && v && !isIso(v) && el.type === 'date') return; if (v) c[f] = v; else delete c[f]; saveCtr(c); if (f === 'signed' || f === 'doc') { renderTenants(); return; } }
+  else if (el.dataset.ctlink) { const l = LV(el.dataset.ctlink); if (el.value) { saveLease(Object.assign({}, l, { c: el.value })); renderTenants(); } return; }
+  else if (el.dataset.mw || el.dataset.mwl) { return; }
   else if (el.dataset.uf) { const k = el.closest('[data-uk]').dataset.uk, f = el.dataset.uf, u = JSON.parse(JSON.stringify(t.util || {})), x = u[k] = u[k] || {};
     if (f === 'due') { const v = el.value.trim(), n = parseInt(v, 10); if (v === '') delete x.due; else if (!(n >= 0 && n <= 90) || String(n) !== v) { toast('A határidő 0 és 90 közötti egész szám.'); el.value = x.due == null ? '' : x.due; return; } else x.due = String(n); }
     else if (f === 'amt') { if (el.value.trim() === '') delete x.amt; else { const n = numIn(el.value); if (n === undefined) { toast('Csak nemnegatív szám adható meg.'); el.value = x.amt == null ? '' : x.amt; return; } x.amt = n; } }
@@ -1671,6 +1721,26 @@ document.addEventListener('click', (e) => {
   const ap = t.closest('[data-addper]'); if (ap) { const lid = ap.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), pt = l.parts[+ap.dataset.addper], last = Object.assign({}, pt.periods[pt.periods.length - 1] || {}); delete last.chk; delete last.note; last.from = today(); pt.periods.push(last); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
   const dp = t.closest('[data-delper]'); if (dp) { if (dp.dataset.arm !== '1') { dp.dataset.arm = '1'; dp.textContent = 'Biztos?'; setTimeout(() => { if (dp.isConnected) { dp.dataset.arm = ''; dp.textContent = '×'; } }, 3000); return; } const lid = dp.closest('[data-lid]').dataset.lid, l = normLease(LV(lid)), pt = l.parts[+dp.closest('[data-parti]').dataset.parti]; pt.periods.splice(+dp.dataset.delper, 1); saveLease(l); renderTenants(); const d = document.querySelector(`#tcard details[data-lid="${lid}"]`); if (d) d.open = true; return; }
   const dl = t.closest('[data-dellease]'); if (dl) { const l = LEA[dl.dataset.dellease]; if (l && l.status && l.status !== 'Tárgyalásban') { toast('Ez a bérlet nem törölhető: a lezáráshoz állítsd a státuszt Lejártra.'); return; } if (dl.dataset.arm !== '1') { dl.dataset.arm = '1'; dl.textContent = 'Biztosan törli?'; setTimeout(() => { if (dl.isConnected) { dl.dataset.arm = ''; dl.textContent = 'Bérlet törlése'; } }, 3000); return; } delete LEA[l.id]; delete RAW[l.id]; if (DB) DB.doc('leases/' + l.id).delete().catch(dbErr); renderTenants(); return; }
+  const gl = t.closest('[data-golease]'); if (gl) { const d = document.querySelector(`#tcard details[data-lid="${gl.dataset.golease}"]`); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); d.classList.add('flash'); setTimeout(() => d.classList.remove('flash'), 1600); } return; }
+  const cnl = t.closest('[data-ctnewlease]'); if (cnl) { const c = CTR[cnl.dataset.ctnewlease], id = nextId('L', LEA), st = isIso(c.signed) ? c.signed : today(); saveLease({ id, t: c.t, c: c.id, status: 'Szerződött', unit: 'm²', start: st, parts: [{ periods: [{ from: st }] }], src: 'admin oldal' }); LEDIT.add(id); renderTenants(); goLease(id, 1); return; }
+  const mnw = t.closest('[data-modnew]'); if (mnw) { MODW = { cid: mnw.dataset.modnew }; renderTenants(); goWiz(); return; }
+  const mcn = t.closest('[data-modcancel]'); if (mcn) { MODW = null; renderTenants(); return; }
+  const mct = t.closest('[data-modcont]'); if (mct) { const [cid, mid] = mct.dataset.modcont.split('|'); MODW = { cid, mid }; renderTenants(); goWiz(); return; }
+  const mgo = t.closest('[data-modgo]'); if (mgo) { goWiz(); return; }
+  const mdl = t.closest('[data-moddel]'); if (mdl) { if (mdl.dataset.arm !== '1') { mdl.dataset.arm = '1'; mdl.textContent = 'Biztos?'; setTimeout(() => { if (mdl.isConnected) { mdl.dataset.arm = ''; mdl.textContent = '×'; } }, 3000); return; }
+    const [cid, mid] = mdl.dataset.moddel.split('|'), c = JSON.parse(JSON.stringify(CTR[cid])); c.mods = (c.mods || []).filter((m) => m.id !== mid); if (!c.mods.length) delete c.mods; if (MODW && MODW.mid === mid) MODW = null; saveCtr(c); renderTenants(); return; }
+  const mnx = t.closest('[data-modnext]'); if (mnx) { const card = mnx.closest('[data-ctid]'), g = (k) => (card.querySelector(`[data-mw="${k}"]`) || {}).value || '', from = g('from').trim(), sig = g('signed').trim();
+    const sel = [...card.querySelectorAll('[data-mwl]:checked')].map((e) => e.dataset.mwl), leases = sel.filter((x) => x !== '__new'), newl = sel.includes('__new');
+    if (!isIso(from)) { toast('Add meg, mikortól érvényes a módosítás.'); return; } if (!leases.length && !newl) { toast('Jelöld ki, mely bérleményeket érinti.'); return; }
+    const c = JSON.parse(JSON.stringify(CTR[mnx.dataset.modnext])); c.mods = c.mods || []; let n = 1; while (c.mods.some((m) => m.id === 'M' + n)) n++;
+    const m = { id: 'M' + n, from, leases, done: {} }; if (sig) m.signed = sig; if (g('note').trim()) m.note = g('note').trim(); if (g('doc').trim()) m.doc = g('doc').trim(); if (newl) m.newl = true;
+    c.mods.push(m); saveCtr(c); MODW = { cid: c.id, mid: m.id }; renderTenants(); goWiz(); return; }
+  const mdo = t.closest('[data-moddo]'); if (mdo && MODW && MODW.mid) { const kind = mdo.dataset.moddo, lid = mdo.dataset.mlid, c = JSON.parse(JSON.stringify(CTR[MODW.cid])), m = c.mods.find((x) => x.id === MODW.mid); m.done = m.done || {}; let go = null;
+    if (kind === 'price') { const r = RAW[lid], k = verAt(r, m.from), l = normLease(viewOf(r, k)), pt = l.parts[0], ps = pt.periods, last = Object.assign({}, ps.filter((x) => !x.from || x.from <= m.from).pop() || ps[ps.length - 1]); delete last.chk; last.from = m.from; last.mod = c.id + '/' + m.id; last.note = m.note || 'szerződésmódosítás'; ps.push(last); ps.sort((a, b2) => (a.from || '').localeCompare(b2.from || '')); saveLease(l); if (k === curK(RAW[lid])) delete VSEL[lid]; else VSEL[lid] = k; LEDIT.add(lid); m.done[lid] = 'price'; go = [lid, 3]; }
+    else if (kind === 'version') { const r = JSON.parse(JSON.stringify(RAW[lid])), base = normLease(viewOf(r, verAt(r, m.from))), snap = {}; for (const f of TERM) if (base[f] !== undefined) snap[f] = base[f]; r.vers = r.vers || []; const v = { from: m.from, c: c.id, mod: m.id, snap }; if (m.signed) v.signed = m.signed; if (m.note) v.note = m.note; r.vers.push(v); putRaw(r); VSEL[lid] = r.vers.length - 1; LEDIT.add(lid); m.done[lid] = 'version'; go = [lid, 0]; }
+    else if (kind === 'new') { const id = nextId('L', LEA); saveLease({ id, t: c.t, c: c.id, status: 'Szerződött', unit: 'm²', start: m.from, parts: [{ periods: [{ from: m.from }] }], note: `A(z) ${c.id} szerződés módosítása alapján`, src: 'admin oldal' }); LEDIT.add(id); m.done.__new = id; go = [id, 1]; }
+    else m.done[lid || '__new'] = kind;
+    saveCtr(c); renderTenants(); if (go) goLease(go[0], go[1]); else goWiz(); return; }
   const ac2 = t.closest('[data-addctr]'); if (ac2) { const id = nextId('C', CTR); saveCtr({ id, t: ac2.dataset.addctr, src: 'admin oldal' }); renderTenants(); return; }
   const dc2 = t.closest('[data-delctr]'); if (dc2) { const id = dc2.dataset.delctr, used = Object.values(LEA).filter((l) => l.c === id).length; if (used) { toast(`Nem törölhető: ${used} bérlet hivatkozik rá.`); return; } if (dc2.dataset.arm !== '1') { dc2.dataset.arm = '1'; dc2.textContent = 'Biztos?'; setTimeout(() => { if (dc2.isConnected) { dc2.dataset.arm = ''; dc2.textContent = 'Törlés'; } }, 3000); return; } delete CTR[id]; if (DB) DB.doc('contracts/' + id).delete().catch(dbErr); renderTenants(); return; }
   const la = t.closest('[data-linkall]'); if (la) { for (const l of leaOf(S.tsel)) if (!l.c) saveLease(Object.assign({}, l, { c: la.dataset.linkall })); renderTenants(); return; }
