@@ -90,7 +90,8 @@
     use: async (n) => {
       if (n === 'user') return { can: async () => true };
       if (n === 'downloads') return { save: async ({ filename, data }) => { const a = document.createElement('a'); a.href = URL.createObjectURL(data); a.download = filename; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); } };
-      if (n === 'db') { if (!sbP) sbP = (async () => { await ensureLib(); const sb = create(); await login(sb); bar(sb); return makeDb(sb); })(); sbP.catch(fail); return sbP; }
+      if (n === 'db') { if (!sbP) sbP = (async () => { await ensureLib(); const sb = create(); await login(sb); bar(sb); if (sb.rpc) { try { Promise.resolve(sb.rpc('daily_snapshot')).catch(() => { }); } catch (e) { } }   // napi mentés (ha ma még nincs)
+        return makeDb(sb); })(); sbP.catch(fail); return sbP; }
       return null;
     },
   };
